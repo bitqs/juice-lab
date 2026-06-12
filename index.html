@@ -11,16 +11,16 @@
 <header>
   <h1 id="title">⚔️ Juice Lab</h1>
   <p class="sub" id="subtitle"></p>
-  <button id="lang-btn">中文</button>
+  <button id="lang-btn" class="btn-ghost">中文</button>
 </header>
 
 <main>
   <section id="stage">
     <canvas id="game" width="640" height="440"></canvas>
     <div id="stage-hint"></div>
-    <button id="ab-btn"><span id="ab-label"></span><span id="ab-state"></span></button>
-    <button id="ult-btn-dom" hidden>⚡ ULT</button>
-    <button id="view-btn">🎥</button>
+    <button id="ab-btn" class="btn-secondary"><span id="ab-label"></span><span id="ab-state"></span></button>
+    <button id="ult-btn-dom" class="btn-primary" hidden>⚡ ULT</button>
+    <button id="view-btn" class="btn-secondary">🎥</button>
   </section>
 
   <aside id="panel">
@@ -39,10 +39,10 @@
 </main>
 
 <nav id="stepper">
-  <button id="prev"></button>
+  <button id="prev" class="btn-ghost"></button>
   <div id="dots"></div>
-  <button id="next"></button>
-  <button id="max-btn">⚡MAX</button>
+  <button id="next" class="btn-secondary"></button>
+  <button id="max-btn" class="btn-primary">⚡MAX</button>
 </nav>
 
 <div id="overload-row" hidden>
@@ -52,8 +52,8 @@
 </div>
 
 <footer>
-  <button id="auto-btn"></button>
-  <button id="gif-btn"></button>
+  <button id="auto-btn" class="btn-ghost"></button>
+  <button id="gif-btn" class="btn-ghost"></button>
   <a href="https://github.com/bitqs/juice-lab" target="_blank" rel="noopener">GitHub</a>
 </footer>
 
