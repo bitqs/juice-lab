@@ -173,15 +173,140 @@ export function buildModules(juice, scene, time) {
     },
   });
 
-  // ⑩ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  // ⑩ 前后摇 + 硬直 — 格斗游戏基本功:攻击有重量是因为它有承诺(commitment)
   juice.register({
-    id: 'overload', name: '⑩ 过载演示', enabled: false,
+    id: 'commitment', name: '⑩ 前后摇+硬直', enabled: false,
+    onUpdate() { scene.flags.commitment = true; },
+    onHit({ target }) { target.staggerT = 1; },          // 受击方硬直后仰
+    onDisabled() { scene.flags.commitment = false; },
+  });
+
+  // ⑪ 挥砍残影(スミアフレーム)— 拉伸模糊的中间帧,稀疏关键帧间传达运动
+  juice.register({
+    id: 'smear', name: '⑪ 挥砍残影', enabled: false,
+    _trail: [],
+    onUpdate({ dt }) {
+      const s = scene.player.swordInfo;
+      if (s && s.active) this._trail.push({ ...s, t: 0 });
+      for (const tr of this._trail) tr.t += dt;
+      this._trail = this._trail.filter(tr => tr.t < 0.12);
+    },
+    onDraw({ ctx }) {
+      for (const tr of this._trail) {
+        const a = (1 - tr.t / 0.12) * 0.35;
+        ctx.save();
+        ctx.translate(tr.px, tr.py);
+        ctx.rotate(tr.angle);
+        const g = ctx.createLinearGradient(0, -52, 0, 0);
+        g.addColorStop(0, `rgba(140,200,255,${a})`);
+        g.addColorStop(1, `rgba(140,200,255,0)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(-7, -52, 14, 52);                    // 比剑宽 = 拉伸感
+        ctx.restore();
+      }
+    },
+  });
+
+  // ⑫ 剑气 — 挥砍命中后飞出新月形斩击波,远程二段命中(伤害 40%)
+  juice.register({
+    id: 'wave', name: '⑫ 剑气', enabled: false,
+    _waves: [],
+    onHit({ melee, dir }) {
+      if (!melee) return;                                 // 剑气的命中不再生剑气
+      this._waves.push({ x: scene.player.x + 40, y: scene.player.y - 8, vx: dir * 560, t: 0, hit: false });
+    },
+    onUpdate({ dt }) {
+      const d = scene.dummy;
+      for (const w of this._waves) {
+        w.x += w.vx * dt; w.t += dt;
+        if (!w.hit && d.alive && Math.abs(w.x - d.x) < d.w / 2 + 6) {
+          w.hit = true;
+          scene.applyHit(0.4, { melee: false });
+        }
+      }
+      this._waves = this._waves.filter(w => w.x < scene.W + 60 && w.t < 1.5);
+    },
+    onDraw({ ctx }) {
+      for (const w of this._waves) {
+        ctx.save();
+        ctx.translate(w.x, w.y);
+        const a = w.hit ? 0.25 : 0.9;
+        // 新月:两段圆弧裁出的月牙,青白渐变 + 残尾
+        for (let i = 0; i < 3; i++) {
+          const off = -i * 14, fade = a * (1 - i * 0.35);
+          ctx.strokeStyle = `rgba(150,220,255,${fade})`;
+          ctx.lineWidth = 10 - i * 3;
+          ctx.beginPath();
+          ctx.arc(off - 18, 0, 30, -0.95, 0.95);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = `rgba(255,255,255,${a})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(-18, 0, 30, -0.95, 0.95);
+        ctx.stroke();
+        ctx.restore();
+      }
+    },
+  });
+
+  // ⑬ 打击帧(インパクトフレーム)— 重击瞬间整屏白黒反转 2-3 帧,眼睛的"接触确认"
+  juice.register({
+    id: 'impactframe', name: '⑬ 打击帧(反转)', enabled: false,
+    _frames: 0,
+    onHit({ crit, kill }) { if (crit || kill) this._frames = 3; },
+    onDraw({ ctx }) {
+      if (this._frames > 0) {
+        this._frames--;
+        ctx.save();
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, scene.W, scene.H);
+        ctx.restore();
+      }
+    },
+  });
+
+  // ⑭ 居合两断 — 击杀终结演出:时停 → 切线划过 → 尸体延迟分离(チャンバラ)
+  juice.register({
+    id: 'iaigiri', name: '⑭ 居合两断', enabled: false,
+    _slash: null,
+    onKill({ target }) {
+      target.split = true;
+      time.freeze(0.22);                                  // 拔刀后的静止——世界屏息
+      this._slash = { x: target.x, y: target.y, t: 0 };
+    },
+    onUpdate({ dt }) {
+      // 用真实帧推进(顿帧期间 dt=0,改用固定步)
+      if (this._slash) { this._slash.t += Math.max(dt, 0.016); if (this._slash.t > 0.5) this._slash = null; }
+    },
+    onDraw({ ctx }) {
+      const s = this._slash;
+      if (!s) return;
+      const a = 1 - s.t / 0.5;
+      // 贯穿全屏的斜切线
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,255,255,${a})`;
+      ctx.lineWidth = s.t < 0.1 ? 3 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x - 320, s.y + 110);
+      ctx.lineTo(s.x + 320, s.y - 110);
+      ctx.stroke();
+      ctx.restore();
+    },
+  });
+
+  // ⑮ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  juice.register({
+    id: 'overload', name: '⑮ 过载演示', enabled: false,
     onUpdate() {},
   });
 
-  // タメツメ 的关闭还原:注册表没有 onDisabled 生命周期,用轮询补
+  // 关闭还原:注册表没有 onDisabled 生命周期,用轮询补
   setInterval(() => {
-    const m = juice.modules.find(m => m.id === 'tametsume');
-    if (m && !m.enabled && m._applied) m.onDisabled();
+    const tame = juice.modules.find(m => m.id === 'tametsume');
+    if (tame && !tame.enabled && tame._applied) tame.onDisabled();
+    const com = juice.modules.find(m => m.id === 'commitment');
+    if (com && !com.enabled && scene.flags.commitment) com.onDisabled();
   }, 100);
 }

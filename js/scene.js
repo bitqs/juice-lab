@@ -4,6 +4,8 @@
 export function createScene(juice) {
   const W = 640, H = 440, GROUND = 340;
 
+  const flags = { commitment: false };   // juice⑩ 前后摇 开关位
+
   const player = {
     x: 200, y: GROUND, w: 34, h: 56,
     facing: 1,
@@ -11,6 +13,9 @@ export function createScene(juice) {
     attackDur: 0.12,      // 匀速;タメツメ模块会改写 pace()
     pace: t => t,         // 攻击动画时间重映射(juice9 改写成慢蓄快斩)
     didHit: false,
+    windupT: -1,          // 前摇进度(flags.commitment 时启用)
+    recoverT: 0,          // 后摇剩余秒(期间不可再攻)
+    swordInfo: null,      // 每帧更新 {px, py, angle, active} 供残影模块读
   };
 
   const dummy = {
@@ -20,19 +25,23 @@ export function createScene(juice) {
     vx: 0, vy: 0, dy: 0,   // dy: 尸体腾空高度
     flashT: 0,             // 闪白剩余秒数(juice1 写入,这里只衰减与绘制)
     wobble: 0,             // 受击晃动
+    staggerT: 0,           // 硬直(juice⑩ 写入):受击僵住+后仰
+    split: false,          // 居合两断(juice⑭ 写入):尸体改为两段分离演出
   };
 
   function attack() {
-    if (player.attackT >= 0) return;        // 攻击中
-    player.attackT = 0;
-    player.didHit = false;
+    if (player.attackT >= 0 || player.windupT >= 0) return;   // 攻击中
+    if (player.recoverT > 0) return;                          // 后摇硬直,不可取消
+    if (flags.commitment) { player.windupT = 0; }             // 前摇起手
+    else { player.attackT = 0; player.didHit = false; }
   }
 
-  function tryHit() {
+  // 共用命中管线:近战与剑气(melee=false)都走这里
+  function applyHit(mult = 1, { melee = true } = {}) {
     if (!dummy.alive) return;
-    const dmg = 8 + Math.floor(Math.random() * 7);       // 8-14
+    const base = 8 + Math.floor(Math.random() * 7);      // 8-14
     const crit = Math.random() < 0.12;
-    const final = crit ? Math.round(dmg * 2.5) : dmg;
+    const final = Math.max(1, Math.round(base * mult * (crit ? 2.5 : 1)));
     dummy.hp -= final;
     const kill = dummy.hp <= 0;
     const dir = player.facing;
@@ -43,11 +52,25 @@ export function createScene(juice) {
       dummy.respawnT = 1.0;
       juice.fire('onKill', { target: dummy, dir });
     }
-    juice.fire('onHit', { target: dummy, dmg: final, crit, kill, dir });
+    juice.fire('onHit', { target: dummy, dmg: final, crit, kill, dir, melee });
   }
+
+  function tryHit() { applyHit(1, { melee: true }); }
 
   function update(dt) {
     worldT += dt;
+
+    // 前摇(juice⑩):0.10s 起手蓄势,然后进入挥砍
+    if (player.windupT >= 0) {
+      player.windupT += dt;
+      if (player.windupT >= 0.10) {
+        player.windupT = -1;
+        player.attackT = 0;
+        player.didHit = false;
+      }
+    }
+    player.recoverT = Math.max(0, player.recoverT - dt);
+
     // 攻击动画推进;命中点在进度 0.55
     if (player.attackT >= 0) {
       player.attackT += dt / player.attackDur;
@@ -55,7 +78,10 @@ export function createScene(juice) {
         player.didHit = true;
         tryHit();
       }
-      if (player.attackT >= 1) player.attackT = -1;
+      if (player.attackT >= 1) {
+        player.attackT = -1;
+        if (flags.commitment) player.recoverT = 0.16;     // 后摇:挥完僵 160ms
+      }
     }
 
     // 假人物理(击退/弹飞由 juice 写入 vx/vy)
@@ -68,11 +94,13 @@ export function createScene(juice) {
       if (dummy.respawnT <= 0) {
         dummy.alive = true; dummy.hp = dummy.maxHp;
         dummy.x = 430; dummy.vx = 0; dummy.vy = 0; dummy.dy = 0;
+        dummy.split = false; dummy.staggerT = 0;
       }
     }
     dummy.x = Math.max(300, Math.min(W - 60, dummy.x));
     dummy.flashT = Math.max(0, dummy.flashT - dt);
     dummy.wobble = Math.max(0, dummy.wobble - dt * 4);
+    dummy.staggerT = Math.max(0, dummy.staggerT - dt * 2.2);
   }
 
   let worldT = 0;                                        // 场景时钟(呼吸/火把用)
@@ -119,9 +147,11 @@ export function createScene(juice) {
   function drawPlayer(ctx) {
     const { w, h } = player;
     const t = player.attackT >= 0 ? player.pace(Math.min(player.attackT, 1)) : -1;
-    // 攻击前冲:挥砍时身体向前突进(力量要有身体语言)
-    const lunge = t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 22;
-    const bob = t < 0 ? Math.sin(worldT * 3) * 2 : 0;     // idle 呼吸
+    const winding = player.windupT >= 0;                  // 前摇中
+    const recovering = player.recoverT > 0;               // 后摇中
+    // 攻击前冲:挥砍时身体向前突进;前摇时反向蓄(重心后坐)
+    const lunge = winding ? -8 : (t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 22);
+    const bob = (t < 0 && !winding) ? Math.sin(worldT * 3) * 2 : 0;   // idle 呼吸
     ctx.save();
     ctx.translate(player.x + lunge, player.y + bob);
 
@@ -163,8 +193,18 @@ export function createScene(juice) {
     ctx.fillStyle = '#1c1c28';
     ctx.fillRect(2, -h / 2 + 2, 4, 4);                    // 眼
 
-    // 剑:idle 扛肩;攻击从上劈下(pace 映射)
-    const angle = t < 0 ? -2.45 : (-2.1 + t * 2.75);
+    // 剑:idle 扛肩;前摇举到最高;攻击从上劈下(pace 映射);后摇收剑在前下方
+    const angle = winding ? (-2.45 - (player.windupT / 0.10) * 0.5)
+                : recovering && t < 0 ? 0.72
+                : t < 0 ? -2.45
+                : (-2.1 + t * 2.75);
+    // 供残影/剑气模块读取的剑骨骼信息(世界坐标)
+    player.swordInfo = {
+      px: player.x + lunge + w / 2 - 2,
+      py: player.y + bob - h / 2 + 16,
+      angle,
+      active: t > 0.3 && t < 0.95,
+    };
     ctx.save();
     ctx.translate(w / 2 - 2, -h / 2 + 16);
     ctx.rotate(angle);
@@ -192,9 +232,15 @@ export function createScene(juice) {
 
   function drawDummy(ctx) {
     const d = dummy;
+
+    // 居合两断演出(juice⑭):尸体改为两段分离,不走普通翻倒
+    if (!d.alive && d.split) { drawSplitDummy(ctx); return; }
+
     ctx.save();
     const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
+    const stagger = d.alive ? d.staggerT * 0.16 : 0;      // 硬直后仰(juice⑩)
     ctx.translate(d.x + wob, d.y - d.dy);
+    ctx.rotate(stagger);
     if (!d.alive) ctx.rotate(0.55);
 
     // 影子(贴地,不随尸体腾空)
@@ -208,7 +254,43 @@ export function createScene(juice) {
 
     const flashing = d.flashT > 0;
 
-    // 底座桩(插在地里)
+    // 两段式尸体:沿斜切线分离滑开(チャンバラ延迟两断)
+  function drawSplitDummy(ctx) {
+    const d = dummy;
+    const prog = Math.min(1, (1 - d.respawnT) * 2.2);     // 分离进度
+    const slide = prog * 26, drop = prog * prog * 30;
+    ctx.save();
+    ctx.translate(d.x, d.y);
+    // 影子
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, d.h / 2 + 8, 30, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const half = (top) => {
+      ctx.save();
+      // 斜切线约 -20°:上半沿攻击方向滑出并翻转
+      if (top) { ctx.translate(slide, -d.h * 0.18 + drop * 0.4); ctx.rotate(0.35 * prog); }
+      else { ctx.translate(-slide * 0.25, drop); ctx.rotate(-0.08 * prog); }
+      ctx.beginPath();
+      // 上/下半身裁切区域(斜线分割)
+      if (top) { ctx.moveTo(-d.w / 2, -d.h / 2); ctx.lineTo(d.w / 2, -d.h / 2); ctx.lineTo(d.w / 2, -4); ctx.lineTo(-d.w / 2, 8); }
+      else { ctx.moveTo(-d.w / 2, 8); ctx.lineTo(d.w / 2, -4); ctx.lineTo(d.w / 2, d.h / 2); ctx.lineTo(-d.w / 2, d.h / 2); }
+      ctx.closePath();
+      ctx.fillStyle = '#6e4a32';
+      ctx.fill();
+      // 切面高亮(刚断开时发白,随时间冷却)
+      ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, 0.9 - prog)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-d.w / 2, 8); ctx.lineTo(d.w / 2, -4);
+      ctx.stroke();
+      ctx.restore();
+    };
+    half(false); half(true);
+    ctx.restore();
+  }
+
+  // 底座桩(插在地里)
     if (d.alive) {
       ctx.fillStyle = flashing ? '#ffffff' : '#5c4630';
       ctx.fillRect(-6, d.h / 2 - 6, 12, 16);
@@ -251,5 +333,5 @@ export function createScene(juice) {
     ctx.restore();
   }
 
-  return { player, dummy, attack, update, draw, W, H, GROUND };
+  return { player, dummy, flags, attack, applyHit, update, draw, W, H, GROUND };
 }
