@@ -7,9 +7,11 @@ export function createScene(juice) {
   const W = 640, H = 440, GROUND = 340;
 
   const flags = { commitment: false };   // juice⑩ 前后摇 开关位
+  const input = { left: false, right: false };   // 移动输入(A/D 或长按)
+  const REACH = 118;                     // 攻击距离:超出挥空
 
   const player = {
-    x: 200, y: GROUND, w: 34, h: 56,
+    x: 330, y: GROUND, w: 34, h: 56,
     facing: 1,
     attackT: -1,          // -1 = idle;0..1 = 攻击动画进度
     attackDur: 0.12,      // 匀速;タメツメ模块会改写 pace()
@@ -42,6 +44,8 @@ export function createScene(juice) {
   // 共用命中管线:近战与剑气(melee=false)都走这里
   function applyHit(mult = 1, { melee = true } = {}) {
     if (!dummy.alive) return;
+    // 近战有距离:够不着就挥空(spacing 是格斗的一半)
+    if (melee && Math.abs(player.x - dummy.x) > REACH) return;
     const base = 8 + Math.floor(Math.random() * 7);      // 8-14
     const crit = Math.random() < 0.12;
     const final = Math.max(1, Math.round(base * mult * (crit ? 2.5 : 1)));
@@ -73,6 +77,13 @@ export function createScene(juice) {
       }
     }
     player.recoverT = Math.max(0, player.recoverT - dt);
+
+    // 移动(攻击/前摇中不能移 — 承诺感)
+    if (player.attackT < 0 && player.windupT < 0) {
+      const mdir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      player.x += mdir * 240 * dt;
+      player.x = Math.max(50, Math.min(560, player.x));
+    }
 
     // 攻击动画推进;命中点在进度 0.55
     if (player.attackT >= 0) {
@@ -109,6 +120,7 @@ export function createScene(juice) {
     dummy.flashT = Math.max(0, dummy.flashT - dt);
     dummy.wobble = Math.max(0, dummy.wobble - dt * 4);
     dummy.staggerT = Math.max(0, dummy.staggerT - dt * 2.2);
+    dummy.squashT = Math.max(0, (dummy.squashT || 0) - dt * 6);
   }
 
   let worldT = 0;                                        // 场景时钟(呼吸/火把用)
@@ -184,6 +196,10 @@ export function createScene(juice) {
       ctx.fillRect(-9, -h / 2 - 4, 18, 16);
     }
 
+    // 武器特效:风格段位 A 以上,剑身镀金燃焰(系统联动 — 打得漂亮,武器跟着燃)
+    const styleMod = juice.modules.find(m => m.id === 'style');
+    const burning = styleMod && styleMod.enabled && styleMod._rank >= 3;
+
     // 剑:idle 扛肩;前摇举到最高;攻击从上劈下(pace 映射);后摇收剑在前下方
     const angle = winding ? (-2.45 - (player.windupT / 0.10) * 0.5)
                 : recovering && t < 0 ? 0.72
@@ -208,10 +224,25 @@ export function createScene(juice) {
       ctx.closePath();
       ctx.fill();
     }
-    ctx.fillStyle = '#dfe6f2';
+    if (burning) {                                        // 燃焰剑:金光 + 沿刃火舌
+      ctx.shadowColor = 'rgba(255,180,60,0.9)';
+      ctx.shadowBlur = 12;
+    }
+    ctx.fillStyle = burning ? '#ffe9b8' : '#dfe6f2';
     ctx.fillRect(-2.5, -52, 5, 52);                       // 剑身
+    ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(-2.5, -52, 2, 52);                       // 刃高光
+    if (burning) {
+      for (let i = 0; i < 4; i++) {                       // 火舌(随机舔动)
+        const fy = -10 - i * 11 - Math.random() * 5;
+        const fr = 2.5 + Math.random() * 2.5;
+        ctx.fillStyle = i % 2 ? 'rgba(255,160,50,0.85)' : 'rgba(255,211,77,0.9)';
+        ctx.beginPath();
+        ctx.ellipse(3 + Math.random() * 2, fy, fr, fr * 1.8, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.fillStyle = '#caa84e';
     ctx.fillRect(-8, -2, 16, 4);                          // 护手
     ctx.fillStyle = '#8a6d3b';
@@ -240,6 +271,10 @@ export function createScene(juice) {
       const p = 1 - d.spawnPop / 0.22;
       const s = 0.4 + p * 0.75 - Math.sin(p * Math.PI) * 0.12;
       ctx.scale(s, s);
+    }
+    if (d.squashT > 0 && d.alive) {                       // 受击挤压:横扁竖缩,弹性恢复
+      const q = Math.sin(d.squashT * Math.PI) * 0.18;
+      ctx.scale(1 + q, 1 - q);
     }
     if (!d.alive) ctx.rotate(0.55);
 
@@ -318,5 +353,5 @@ export function createScene(juice) {
     ctx.restore();
   }
 
-  return { player, dummy, flags, attack, applyHit, update, draw, W, H, GROUND };
+  return { player, dummy, flags, input, REACH, attack, applyHit, update, draw, W, H, GROUND };
 }

@@ -1,6 +1,9 @@
 import { createScene } from './scene.js';
 import { buildModules } from './juice.js';
 import { STEPS } from './steps.js';
+import { t, lang, setLang } from './i18n.js';
+
+let L = lang;   // 当前语言('en' 默认)
 
 // ---------- juice 注册表 ----------
 export const juice = {
@@ -47,12 +50,12 @@ function applyStep(n) {
 function renderUI() {
   const s = STEPS[step];
   const tag = document.getElementById('step-tag');
-  tag.textContent = `STEP ${step} · ${s.act}`;
-  tag.dataset.act = s.act;
-  document.getElementById('step-name').textContent = s.name;
-  document.getElementById('step-desc').textContent = s.desc;
-  document.getElementById('step-params').textContent = s.params;
-  document.getElementById('step-source').textContent = s.source;
+  tag.textContent = `${t('step')} ${step} · ${s.act[L]}`;
+  tag.dataset.act = s.act.zh;                 // 配色键固定用中文值
+  document.getElementById('step-name').textContent = s.name[L];
+  document.getElementById('step-desc').textContent = s.desc[L];
+  document.getElementById('step-params').textContent = s.params[L];
+  document.getElementById('step-source').textContent = s.source[L];
   document.getElementById('prev').disabled = step === 0;
   document.getElementById('next').disabled = step === STEPS.length - 1;
   document.getElementById('overload-row').hidden = step !== STEPS.length - 1;
@@ -63,8 +66,8 @@ function renderUI() {
   STEPS.forEach((st, i) => {
     const d = document.createElement('div');
     d.className = 'dot' + (i === step ? ' active' : i < step ? ' passed' : '');
-    d.dataset.act = st.act;
-    d.title = st.name;
+    d.dataset.act = st.act.zh;
+    d.title = st.name[L];
     d.onclick = () => applyStep(i);
     dots.appendChild(d);
   });
@@ -83,9 +86,28 @@ function renderToggles() {
     cb.checked = m.enabled;
     cb.onchange = () => { m.enabled = cb.checked; label.className = m.enabled ? 'on' : ''; };
     label.appendChild(cb);
-    label.appendChild(document.createTextNode(m.name));
+    label.appendChild(document.createTextNode(m.name[L]));
     box.appendChild(label);
   });
+}
+
+// 静态 UI 文案(随语言切换重渲)
+function renderStatic() {
+  document.getElementById('title').textContent = t('title');
+  document.getElementById('subtitle').textContent = t('subtitle');
+  document.getElementById('stage-hint').textContent = t('hint');
+  document.getElementById('ab-label').textContent = t('ab');
+  document.getElementById('ab-state').textContent = abShowingBase ? t('abBase') : t('abCurrent');
+  document.getElementById('prev').textContent = t('prev');
+  document.getElementById('next').textContent = t('next');
+  document.getElementById('free-title').textContent = t('freeMode');
+  document.getElementById('free-hint').textContent = t('freeModeHint');
+  document.getElementById('overload-label').textContent = t('overloadLabel') + ' ';
+  document.getElementById('overload-warn').textContent = t('overloadWarn');
+  document.getElementById('auto-btn').textContent = t('auto') + (auto ? t('on') : t('off'));
+  document.getElementById('gif-btn').textContent = t('gif');
+  document.getElementById('ult-btn-dom').textContent = t('ultBtn');
+  document.getElementById('lang-btn').textContent = L === 'en' ? '中文' : 'EN';
 }
 
 document.getElementById('prev').onclick = () => applyStep(step - 1);
@@ -97,12 +119,11 @@ document.getElementById('ab-btn').onclick = () => {
     savedEnabled = juice.modules.map(m => m.enabled);
     juice.modules.forEach(m => m.enabled = false);
     abShowingBase = true;
-    document.getElementById('ab-state').textContent = '第 0 步(裸)';
   } else {
     juice.modules.forEach((m, i) => m.enabled = savedEnabled[i]);
     abShowingBase = false;
-    document.getElementById('ab-state').textContent = '当前配置';
   }
+  document.getElementById('ab-state').textContent = abShowingBase ? t('abBase') : t('abCurrent');
   renderToggles();
 };
 
@@ -116,22 +137,57 @@ document.getElementById('overload').oninput = (e) => {
 let auto = false, autoT = 0;
 document.getElementById('auto-btn').onclick = (e) => {
   auto = !auto;
-  e.target.textContent = `🤖 自动连击:${auto ? '开' : '关'}`;
+  e.target.textContent = t('auto') + (auto ? t('on') : t('off'));
 };
 
-document.getElementById('gif-btn').onclick = () => alert('GIF 录制 v2 安排上 — 先用系统录屏吧');
+document.getElementById('gif-btn').onclick = () => alert(t('gifAlert'));
 
 // ---------- 输入 ----------
-canvas.addEventListener('pointerdown', () => scene.attack());
+// 输入:点按=攻击;长按(>180ms)=向按住一侧移动;键盘 A/D 移动、空格攻击
 const ultMod = juice.modules.find(m => m.id === 'ultimate');
 const ultBtn = document.getElementById('ult-btn-dom');
 ultBtn.onclick = () => ultMod.trigger();
+
+let holdTimer = null, holding = false;
+canvas.addEventListener('pointerdown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const px = (e.clientX - rect.left) / rect.width * 640;
+  holdTimer = setTimeout(() => {
+    holding = true;
+    if (px < scene.player.x) scene.input.left = true;
+    else scene.input.right = true;
+  }, 180);
+});
+function releaseHold() {
+  clearTimeout(holdTimer);
+  if (holding) { holding = false; scene.input.left = scene.input.right = false; }
+  else if (holdTimer !== null) scene.attack();   // 快速点按 = 攻击
+  holdTimer = null;
+}
+canvas.addEventListener('pointerup', releaseHold);
+canvas.addEventListener('pointercancel', releaseHold);
+canvas.addEventListener('pointerleave', releaseHold);
+
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); scene.attack(); }
   if (e.code === 'KeyU') ultMod.trigger();
+  if (e.code === 'KeyA') scene.input.left = true;
+  if (e.code === 'KeyD') scene.input.right = true;
   if (e.code === 'ArrowRight') applyStep(step + 1);
   if (e.code === 'ArrowLeft') applyStep(step - 1);
 });
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'KeyA') scene.input.left = false;
+  if (e.code === 'KeyD') scene.input.right = false;
+});
+
+// 语言切换 / 一键全开
+document.getElementById('lang-btn').onclick = () => {
+  L = L === 'en' ? 'zh' : 'en';
+  setLang(L);
+  renderStatic(); renderUI();
+};
+document.getElementById('max-btn').onclick = () => applyStep(STEPS.length - 1);
 
 // ---------- 主循环 ----------
 let last = performance.now();
@@ -156,8 +212,14 @@ function frame(now) {
   if (time.skip > 0) { dt += time.skip; time.skip = 0; }
 
   if (auto) {
-    autoT -= dt;
-    if (autoT <= 0) { scene.attack(); autoT = 0.55; }   // 适配前后摇全程 ~490ms
+    const gap = scene.dummy.x - scene.player.x;
+    if (Math.abs(gap) > scene.REACH - 12) {              // 出了攻击距离 → 追
+      scene.input.right = gap > 0; scene.input.left = gap < 0;
+    } else {
+      scene.input.right = scene.input.left = false;
+      autoT -= dt;
+      if (autoT <= 0) { scene.attack(); autoT = 0.55; } // 适配前后摇全程 ~490ms
+    }
   }
 
   scene.update(dt);
@@ -208,6 +270,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+renderStatic();
 applyStep(0);
 requestAnimationFrame(frame);
 

@@ -12,14 +12,15 @@ function ctx() {
 export function sfx(kind) {
   const a = ctx();
   const t = a.currentTime;
+  const pv = 0.92 + Math.random() * 0.16;   // 音调随机 ±8%:每刀不重样(Vlambeer)
 
   if (kind === 'hit') {
     // 中频三角波 60ms,带一点点噪声脆感
-    tone(a, t, 'triangle', 320, 180, 0.06, 0.25);
+    tone(a, t, 'triangle', 320 * pv, 180 * pv, 0.06, 0.25);
     noise(a, t, 0.03, 0.08);
   } else if (kind === 'crit') {
     // 低频方波 120ms + 噪声 — "重"在低频
-    tone(a, t, 'square', 140, 70, 0.12, 0.35);
+    tone(a, t, 'square', 140 * pv, 70 * pv, 0.12, 0.35);
     noise(a, t, 0.06, 0.18);
   } else if (kind === 'kill') {
     // 下扫 200ms:从 400Hz 滑到 40Hz,终结感

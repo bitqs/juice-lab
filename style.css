@@ -23,9 +23,16 @@ body {
   gap: 14px;
 }
 
-header { text-align: center; }
+header { text-align: center; position: relative; width: 100%; max-width: 1020px; }
 header h1 { font-size: 22px; letter-spacing: 1px; }
 header .sub { color: var(--dim); font-size: 12px; margin-top: 6px; }
+#lang-btn {
+  position: absolute;
+  right: 0; top: 0;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+#max-btn { color: var(--accent); border-color: #5a4d1e; }
 
 main {
   display: flex;
@@ -221,14 +228,27 @@ footer {
 footer a { color: var(--dim); }
 
 @media (max-width: 768px) {
-  body { padding: 10px; gap: 10px; }
+  body { padding: 10px; gap: 10px; padding-bottom: 86px; }
   main { flex-direction: column; }
   #game { width: 100%; height: auto; aspect-ratio: 640/440; }
-  #toggles { grid-template-columns: 1fr 1fr; }
+  #toggles { grid-template-columns: 1fr 1fr; font-size: 11px; }
   /* 触摸热区加大 */
-  button { padding: 12px 16px; font-size: 14px; }
-  .dot { width: 14px; height: 14px; }
-  #stepper { width: 100%; justify-content: space-between; gap: 8px; }
-  #dots { flex-wrap: wrap; justify-content: center; }
+  button { padding: 12px 14px; font-size: 14px; }
+  .dot { width: 13px; height: 13px; }
+  /* 步进条吸底:竖屏拇指可达 */
+  #stepper {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(10,10,18,0.95);
+    border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+    z-index: 10;
+  }
+  #dots { flex-wrap: wrap; justify-content: center; max-width: 42vw; }
   #stage-hint { font-size: 10px; }
+  #lang-btn { position: static; margin-top: 6px; }
+  header { display: flex; flex-direction: column; align-items: center; }
 }

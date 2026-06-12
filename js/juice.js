@@ -3,12 +3,13 @@
 
 import { sfx } from './audio.js';
 import { sprites } from './assets.js';
+import { t } from './i18n.js';
 
 export function buildModules(juice, scene, time) {
 
   // ① 闪白 tintFill — VS:命中 120ms 纯白,死亡 60ms(别盖住死亡动画)
   juice.register({
-    id: 'flash', name: '① 闪白 tintFill', enabled: false,
+    id: 'flash', name: { en: '① Hit flash', zh: '① 闪白 tintFill' }, enabled: false,
     onHit({ target, kill }) { target.flashT = kill ? 0.06 : 0.12; },
   });
 
@@ -16,7 +17,7 @@ export function buildModules(juice, scene, time) {
   //   普攻 = 对象级顿帧(只停受击者 45ms + 微振动,世界照走 — ベルトスクロール铁律)
   //   暴击 55ms / 处决 80ms = 世界级冻结(樱井:越重越久)
   juice.register({
-    id: 'hitstop', name: '② 顿帧 hitstop', enabled: false,
+    id: 'hitstop', name: { en: '② Hitstop', zh: '② 顿帧 hitstop' }, enabled: false,
     onHit({ target, crit, kill }) {
       if (kill) time.freeze(0.080);
       else if (crit) time.freeze(0.055);
@@ -26,9 +27,10 @@ export function buildModules(juice, scene, time) {
 
   // ③ 击退 + 死亡弹飞 — VS:速度取反 × deathKB,尸体沿攻击向量飞
   juice.register({
-    id: 'knockback', name: '③ 击退+死亡弹飞', enabled: false,
+    id: 'knockback', name: { en: '③ Knockback+squash', zh: '③ 击退+挤压' }, enabled: false,
     onHit({ target, dir, kill }) {
       target.vx = dir * (kill ? 260 : 90);
+      target.squashT = 1;                              // 挤压拉伸(迪士尼12原则)
       if (kill) { target.vy = -260; target.dy = 1; }   // 腾空
     },
   });
@@ -36,7 +38,7 @@ export function buildModules(juice, scene, time) {
   // ④ 伤害数字 — VS:逐位精灵 + 弹跳缓动 + ±0.15 随机偏移防叠
   const numbers = [];
   juice.register({
-    id: 'dmgnum', name: '④ 伤害数字', enabled: false,
+    id: 'dmgnum', name: { en: '④ Damage numbers', zh: '④ 伤害数字' }, enabled: false,
     onHit({ target, dmg, crit }) {
       numbers.push({
         x: target.x + (Math.random() * 24 - 12),
@@ -69,7 +71,7 @@ export function buildModules(juice, scene, time) {
   // ⑤ 命中贴片 + 冲击波 — VS HITVFX 表:接触点星形 + 扩散环
   const vfx = [];
   juice.register({
-    id: 'hitvfx', name: '⑤ 命中贴片+冲击波', enabled: false,
+    id: 'hitvfx', name: { en: '⑤ Hit VFX', zh: '⑤ 命中贴片+冲击波' }, enabled: false,
     onHit({ target, crit }) {
       const x = target.x - target.w / 2, y = target.y - 10 + Math.random() * 20;
       vfx.push({ kind: 'star', x, y, t: 0, life: 0.09, big: crit });
@@ -110,7 +112,7 @@ export function buildModules(juice, scene, time) {
   // ⑥ 死亡粒子爆裂 — 12 粒放射 + 重力,颜色继承本体
   const parts = [];
   juice.register({
-    id: 'particles', name: '⑥ 死亡粒子', enabled: false,
+    id: 'particles', name: { en: '⑥ Death particles', zh: '⑥ 死亡粒子' }, enabled: false,
     onKill({ target, dir }) {
       const n = Math.round(12 * time.overload);
       for (let i = 0; i < n; i++) {
@@ -140,7 +142,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑦ 屏震 — VS 铁律:普攻零屏震,屏震是稀缺资源,只给击杀/暴击
   juice.register({
-    id: 'shake', name: '⑦ 屏震(稀缺!)', enabled: false,
+    id: 'shake', name: { en: '⑦ Screen shake (scarce!)', zh: '⑦ 屏震(稀缺!)' }, enabled: false,
     onHit({ crit, kill }) {
       if (kill) { time.shake.mag = 11 * time.overload; time.shake.decay = 0.35; }
       else if (crit) { time.shake.mag = 6 * time.overload; time.shake.decay = 0.22; }
@@ -150,13 +152,13 @@ export function buildModules(juice, scene, time) {
 
   // ⑧ 音效分层 — Vlambeer:重击给低频;命中/暴击/击杀三档
   juice.register({
-    id: 'sfx', name: '⑧ 音效分层', enabled: false,
+    id: 'sfx', name: { en: '⑧ Layered SFX', zh: '⑧ 音效分层' }, enabled: false,
     onHit({ crit, kill }) { sfx(kill ? 'kill' : crit ? 'crit' : 'hit'); },
   });
 
   // ⑨ タメツメ — 打击帧笔记:慢蓄(タメ)→ 瞬斩(ツメ),不对称配速
   juice.register({
-    id: 'tametsume', name: '⑨ タメツメ前摇', enabled: false,
+    id: 'tametsume', name: { en: '⑨ Tame-tsume', zh: '⑨ タメツメ前摇' }, enabled: false,
     _saved: null,
     onUpdate() {
       // enabled 时改写攻击配速;关闭时还原
@@ -178,7 +180,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑩ 前后摇 + 硬直 — 格斗游戏基本功:攻击有重量是因为它有承诺(commitment)
   juice.register({
-    id: 'commitment', name: '⑩ 前后摇+硬直', enabled: false,
+    id: 'commitment', name: { en: '⑩ Startup/recovery', zh: '⑩ 前后摇+硬直' }, enabled: false,
     onUpdate() { scene.flags.commitment = true; },
     onHit({ target }) { target.staggerT = 1; },          // 受击方硬直后仰
     onDisabled() { scene.flags.commitment = false; },
@@ -186,7 +188,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑪ 挥砍残影(スミアフレーム)— 拉伸模糊的中间帧,稀疏关键帧间传达运动
   juice.register({
-    id: 'smear', name: '⑪ 挥砍残影', enabled: false,
+    id: 'smear', name: { en: '⑪ Smear frames', zh: '⑪ 挥砍残影' }, enabled: false,
     _trail: [],
     onUpdate({ dt }) {
       const s = scene.player.swordInfo;
@@ -212,7 +214,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑫ 剑气 — 挥砍命中后飞出新月形斩击波,远程二段命中(伤害 40%)
   juice.register({
-    id: 'wave', name: '⑫ 剑气', enabled: false,
+    id: 'wave', name: { en: '⑫ Sword wave', zh: '⑫ 剑气' }, enabled: false,
     _waves: [],
     onHit({ melee, dir }) {
       if (!melee) return;                                 // 剑气的命中不再生剑气
@@ -255,7 +257,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑬ 打击帧(インパクトフレーム)— 重击瞬间整屏白黒反转 2-3 帧,眼睛的"接触确认"
   juice.register({
-    id: 'impactframe', name: '⑬ 打击帧(反转)', enabled: false,
+    id: 'impactframe', name: { en: '⑬ Impact frame', zh: '⑬ 打击帧(反转)' }, enabled: false,
     _frames: 0,
     onHit({ crit, kill }) { if (crit || kill) this._frames = 3; },
     onDraw({ ctx }) {
@@ -272,7 +274,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑭ 居合两断 — 击杀终结演出:时停 → 切线划过 → 尸体延迟分离(チャンバラ)
   juice.register({
-    id: 'iaigiri', name: '⑭ 居合两断', enabled: false,
+    id: 'iaigiri', name: { en: '⑭ Iai cut', zh: '⑭ 居合两断' }, enabled: false,
     _slash: null,
     onKill({ target }) {
       target.split = true;
@@ -307,7 +309,7 @@ export function buildModules(juice, scene, time) {
     { ch: 'SSS', color: '#ff5d5d' },
   ];
   juice.register({
-    id: 'style', name: '⑮ 风格评价(DMC)', enabled: false,
+    id: 'style', name: { en: '⑮ Style rank (DMC)', zh: '⑮ 风格评价(DMC)' }, enabled: false,
     _gauge: 0, _combo: 0, _comboT: 0, _rank: -1, _pulse: 0,
     onHit({ crit, kill, melee }) {
       // 多样性给分更高:暴击/剑气二段/击杀 > 重复普攻
@@ -357,7 +359,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑯ 镜头语言(电影)— 抽帧 / 急推 / 速度坡道:剪辑台上的打击感
   juice.register({
-    id: 'cinema', name: '⑯ 镜头语言(电影)', enabled: false,
+    id: 'cinema', name: { en: '⑯ Camera (film)', zh: '⑯ 镜头语言(电影)' }, enabled: false,
     _zoomT: 0,
     onHit({ target, crit, kill, dir }) {
       time.skip = 0.03;                                   // 每次命中吞 30ms — "去一帧"更狠
@@ -396,7 +398,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑰ 大招 — 综合演出:蓄力槽 → 时停拔刀 → 三连斩线 → 终镇。所有层一次性合奏
   juice.register({
-    id: 'ultimate', name: '⑰ 大招(综合)', enabled: false,
+    id: 'ultimate', name: { en: '⑰ Ultimate', zh: '⑰ 大招(综合)' }, enabled: false,
     _charge: 0, _state: null, _t: 0, _bars: 0, _slashes: [], _aura: 0,
     onHit({ crit, kill }) {
       if (this._state) return;
@@ -463,7 +465,7 @@ export function buildModules(juice, scene, time) {
         ctx.fillRect(2, 2, 126 * (this._charge / 100), 8);
         ctx.font = 'bold 11px monospace';
         ctx.fillStyle = full ? '#ffd34d' : '#8888a0';
-        ctx.fillText(full ? '⚡ 大招就绪 — 按 U / 点按钮' : `大招充能 ${Math.round(this._charge)}%`, 0, -6);
+        ctx.fillText(full ? t('ultReady') : `${t('ultCharge')} ${Math.round(this._charge)}%`, 0, -6);
         if (full) {
           const tw = 0.5 + 0.5 * Math.sin(performance.now() / 180);
           ctx.strokeStyle = `rgba(255,211,77,${0.4 + 0.5 * tw})`;
@@ -604,7 +606,7 @@ export function buildModules(juice, scene, time) {
         ctx.font = 'bold 15px monospace';
         ctx.textAlign = 'center';
         ctx.fillStyle = `rgba(232,232,240,${a})`;
-        ctx.fillText('……斬り終わった。', W / 2, H - 64);
+        ctx.fillText(t('poseLine'), W / 2, H - 64);
       }
 
       // ⑦ 终镇白闪
@@ -617,7 +619,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑱ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
   juice.register({
-    id: 'overload', name: '⑱ 过载演示', enabled: false,
+    id: 'overload', name: { en: '⑱ Overload demo', zh: '⑱ 过载演示' }, enabled: false,
     onUpdate() {},
   });
 
