@@ -25,6 +25,19 @@ export function sfx(kind) {
     // 下扫 200ms:从 400Hz 滑到 40Hz,终结感
     tone(a, t, 'sawtooth', 400, 40, 0.2, 0.3);
     noise(a, t, 0.1, 0.2);
+  } else if (kind === 'ultCharge') {
+    // 大招蓄力:上扫 550ms,越升越紧
+    tone(a, t, 'sawtooth', 60, 880, 0.55, 0.18);
+    tone(a, t + 0.1, 'sine', 120, 1200, 0.45, 0.12);
+  } else if (kind === 'slash') {
+    // 斩线:高频噪声短爆
+    noise(a, t, 0.07, 0.3);
+    tone(a, t, 'triangle', 1800, 600, 0.06, 0.15);
+  } else if (kind === 'ultBoom') {
+    // 终镇:亚低频长鸣 + 噪声尾
+    tone(a, t, 'sine', 80, 32, 0.5, 0.5);
+    tone(a, t, 'square', 110, 45, 0.3, 0.2);
+    noise(a, t, 0.25, 0.3);
   }
 }
 

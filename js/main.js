@@ -44,7 +44,9 @@ function applyStep(n) {
 
 function renderUI() {
   const s = STEPS[step];
-  document.getElementById('step-tag').textContent = `STEP ${step}`;
+  const tag = document.getElementById('step-tag');
+  tag.textContent = `STEP ${step} · ${s.act}`;
+  tag.dataset.act = s.act;
   document.getElementById('step-name').textContent = s.name;
   document.getElementById('step-desc').textContent = s.desc;
   document.getElementById('step-params').textContent = s.params;
@@ -56,9 +58,11 @@ function renderUI() {
   // 步进点
   const dots = document.getElementById('dots');
   dots.innerHTML = '';
-  STEPS.forEach((_, i) => {
+  STEPS.forEach((st, i) => {
     const d = document.createElement('div');
     d.className = 'dot' + (i === step ? ' active' : i < step ? ' passed' : '');
+    d.dataset.act = st.act;
+    d.title = st.name;
     d.onclick = () => applyStep(i);
     dots.appendChild(d);
   });
@@ -117,8 +121,12 @@ document.getElementById('gif-btn').onclick = () => alert('GIF 录制 v2 安排�
 
 // ---------- 输入 ----------
 canvas.addEventListener('pointerdown', () => scene.attack());
+const ultMod = juice.modules.find(m => m.id === 'ultimate');
+const ultBtn = document.getElementById('ult-btn-dom');
+ultBtn.onclick = () => ultMod.trigger();
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); scene.attack(); }
+  if (e.code === 'KeyU') ultMod.trigger();
   if (e.code === 'ArrowRight') applyStep(step + 1);
   if (e.code === 'ArrowLeft') applyStep(step - 1);
 });
@@ -152,6 +160,9 @@ function frame(now) {
 
   scene.update(dt);
   juice.fire('onUpdate', { dt });
+
+  // 大招按钮:就绪才现身(手机靠它,桌面也可按 U)
+  ultBtn.hidden = !(ultMod.enabled && ultMod._charge >= 100 && !ultMod._state);
 
   // 屏震(真实时间衰减,不受顿帧影响 — 顿帧时震动仍在走才有"砸"感)
   // 整屏震:画布内容 + 整个页面一起位移

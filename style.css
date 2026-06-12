@@ -95,6 +95,30 @@ main {
   border-radius: 4px;
   margin-bottom: 10px;
 }
+/* 篇章配色:游戏=金 动漫=粉 电影=青 综合=红 警告=灰 */
+#step-tag[data-act="动漫篇"] { background: #ff8ab8; }
+#step-tag[data-act="电影篇"] { background: #5dc8ff; }
+#step-tag[data-act="综合"]   { background: #ff5d5d; color: #fff; }
+#step-tag[data-act="警告"]   { background: #8888a0; }
+.dot[data-act="动漫篇"].active { background: #ff8ab8; }
+.dot[data-act="电影篇"].active { background: #5dc8ff; }
+.dot[data-act="综合"].active   { background: #ff5d5d; }
+
+#ult-btn-dom {
+  position: absolute;
+  bottom: 44px;
+  left: 14px;
+  background: linear-gradient(135deg, #b8860b, #ffd34d);
+  color: #1a1200;
+  font-weight: bold;
+  border: none;
+  box-shadow: 0 0 18px rgba(255, 211, 77, 0.55);
+  animation: ult-pulse 0.9s ease-in-out infinite;
+}
+@keyframes ult-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 14px rgba(255,211,77,0.45); }
+  50% { transform: scale(1.07); box-shadow: 0 0 26px rgba(255,211,77,0.85); }
+}
 
 #step-card h2 { font-size: 18px; margin-bottom: 10px; }
 #step-desc { font-size: 13px; line-height: 1.7; color: var(--text); }

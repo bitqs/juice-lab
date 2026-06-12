@@ -379,9 +379,129 @@ export function buildModules(juice, scene, time) {
     onDisabled() { time.zoom.v = 1; time.scale = 1; },
   });
 
-  // ⑰ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  // ⑰ 大招 — 综合演出:蓄力槽 → 时停拔刀 → 三连斩线 → 终镇。所有层一次性合奏
   juice.register({
-    id: 'overload', name: '⑰ 过载演示', enabled: false,
+    id: 'ultimate', name: '⑰ 大招(综合)', enabled: false,
+    _charge: 0, _state: null, _t: 0, _bars: 0, _slashes: [], _aura: 0,
+    onHit({ crit, kill }) {
+      if (this._state) return;
+      this._charge = Math.min(100, this._charge + (kill ? 20 : crit ? 14 : 8));
+    },
+    trigger() {
+      if (this._charge < 100 || this._state) return;
+      this._state = 'charge'; this._t = 0;
+      sfx('ultCharge');
+      time.slowmo(0.15, 0.6);                            // 全场慢下来,只有你在蓄
+    },
+    onUpdate() {
+      // 演出走真实节拍(不被自己掀起的慢动作拖住)
+      if (!this._state) {
+        this._bars = Math.max(0, this._bars - 0.016 * 3);
+        return;
+      }
+      this._t += 0.016;
+      this._bars = Math.min(1, this._bars + 0.016 * 4);  // 黑边压入
+      const d = scene.dummy;
+      if (this._state === 'charge') {
+        this._aura = this._t / 0.6;
+        if (this._t > 0.6) {
+          this._state = 'slash'; this._t = 0; this._aura = 0;
+          this._slashes = [0, 1, 2].map(i => ({ delay: i * 0.13, fired: false, ang: -0.55 + i * 0.55, life: 0 }));
+        }
+      } else if (this._state === 'slash') {
+        for (const s of this._slashes) {
+          if (!s.fired && this._t >= s.delay) {
+            s.fired = true;
+            sfx('slash');
+            time.freeze(0.05);                            // 每道斩线一记微顿帧
+            if (d.alive) scene.applyHit(1.4, { melee: false });
+          }
+          if (s.fired) s.life += 0.016;
+        }
+        if (this._t > 0.55) {
+          this._state = 'boom'; this._t = 0;
+          sfx('ultBoom');
+          time.shake.mag = 16; time.shake.decay = 0.45;   // 最大震幅,只此一处
+          time.zoom.cx = d.x; time.zoom.cy = d.y - 20;
+          if (d.alive) scene.applyHit(5, { melee: false }); // 终镇必杀
+        }
+      } else if (this._state === 'boom') {
+        if (this._t > 0.9) { this._state = null; this._charge = 0; this._slashes = []; }
+      }
+    },
+    onDraw({ ctx }) {
+      const W = scene.W, H = scene.H;
+      // 蓄力槽 HUD(左下)
+      if (!this._state) {
+        const full = this._charge >= 100;
+        ctx.save();
+        ctx.translate(16, H - 26);
+        ctx.fillStyle = 'rgba(13,12,22,0.8)';
+        ctx.fillRect(0, 0, 130, 12);
+        ctx.fillStyle = full ? '#ffd34d' : '#7a6a30';
+        ctx.fillRect(2, 2, 126 * (this._charge / 100), 8);
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = full ? '#ffd34d' : '#8888a0';
+        ctx.fillText(full ? '⚡ 大招就绪 — 按 U / 点按钮' : `大招充能 ${Math.round(this._charge)}%`, 0, -6);
+        if (full) {
+          const tw = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+          ctx.strokeStyle = `rgba(255,211,77,${0.4 + 0.5 * tw})`;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-1, -1, 132, 14);
+        }
+        ctx.restore();
+      }
+      // 电影黑边(letterbox)
+      if (this._bars > 0) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, 46 * this._bars);
+        ctx.fillRect(0, H - 46 * this._bars, W, 46 * this._bars);
+      }
+      // 蓄力光环:收束圆 + 人物金光
+      if (this._state === 'charge') {
+        const p = scene.player, a = this._aura;
+        ctx.save();
+        ctx.translate(p.x, p.y - 10);
+        for (let i = 0; i < 3; i++) {
+          const r = (1 - ((a * 1.4 + i * 0.33) % 1)) * 70 + 8;
+          ctx.strokeStyle = `rgba(255,211,77,${0.5 - r / 200})`;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(255,211,77,${a * 0.16})`;
+        ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        // 全场压暗,聚焦主角
+        ctx.fillStyle = `rgba(0,0,0,${a * 0.35})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+      // 三连斩线:贯穿全屏,交叉角度
+      for (const s of (this._slashes || [])) {
+        if (!s.fired || s.life > 0.4) continue;
+        const a = 1 - s.life / 0.4;
+        const d = scene.dummy;
+        ctx.save();
+        ctx.translate(d.x, d.y - 10);
+        ctx.rotate(s.ang);
+        ctx.strokeStyle = `rgba(255,255,255,${a})`;
+        ctx.lineWidth = s.life < 0.06 ? 5 : 2;
+        ctx.beginPath(); ctx.moveTo(-380, 0); ctx.lineTo(380, 0); ctx.stroke();
+        ctx.strokeStyle = `rgba(150,220,255,${a * 0.5})`;
+        ctx.lineWidth = 9;
+        ctx.beginPath(); ctx.moveTo(-380, 0); ctx.lineTo(380, 0); ctx.stroke();
+        ctx.restore();
+      }
+      // 终镇白屏衰减
+      if (this._state === 'boom' && this._t < 0.25) {
+        ctx.fillStyle = `rgba(255,255,255,${0.7 * (1 - this._t / 0.25)})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+    },
+  });
+
+  // ⑱ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  juice.register({
+    id: 'overload', name: '⑱ 过载演示', enabled: false,
     onUpdate() {},
   });
 
