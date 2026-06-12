@@ -84,6 +84,8 @@ export function createScene(juice) {
       player.x += mdir * 240 * dt;
       player.x = Math.max(50, Math.min(560, player.x));
     }
+    // 碰撞分离:不能穿过活着的假人(相对位置恒定,剑永远朝向目标)
+    if (dummy.alive) player.x = Math.min(player.x, dummy.x - 64);
 
     // 攻击动画推进;命中点在进度 0.55
     if (player.attackT >= 0) {
