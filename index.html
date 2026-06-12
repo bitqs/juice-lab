@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juice Lab · 打击感实验室</title>
+<meta name="description" content="一步一步感受打击感是怎么叠出来的 — 参数全部溯源自《吸血鬼幸存者》《Hades》反编译研究">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>⚔️ Juice Lab · 打击感实验室</h1>
+  <p class="sub">从"死鱼"到"上头",一层一层叠出来 — 参数溯源自 VS / Hades 源码拆解</p>
+</header>
+
+<main>
+  <section id="stage">
+    <canvas id="game" width="640" height="440"></canvas>
+    <div id="stage-hint">点击 / 空格 = 攻击</div>
+    <button id="ab-btn" title="在第 0 步与当前配置之间切换">A/B 对比:<span id="ab-state">当前配置</span></button>
+  </section>
+
+  <aside id="panel">
+    <div id="step-card">
+      <div id="step-tag">STEP 0</div>
+      <h2 id="step-name">裸命中</h2>
+      <p id="step-desc">说明加载中…</p>
+      <div id="step-params"></div>
+      <div id="step-source"></div>
+    </div>
+    <div id="free-mode">
+      <h3>自由模式 <span class="hint">任意组合开关</span></h3>
+      <div id="toggles"></div>
+    </div>
+  </aside>
+</main>
+
+<nav id="stepper">
+  <button id="prev">← 上一步</button>
+  <div id="dots"></div>
+  <button id="next">下一步 →</button>
+</nav>
+
+<div id="overload-row" hidden>
+  <label>过载倍率 <span id="overload-val">1.0x</span></label>
+  <input type="range" id="overload" min="1" max="5" step="0.5" value="1">
+  <span class="warn">⚠ 倒U曲线:juice 过量 → 可读性下降(CHI 2024)</span>
+</div>
+
+<footer>
+  <button id="auto-btn">🤖 自动连击:关</button>
+  <button id="gif-btn" title="即将到来">📹 录 5 秒 GIF(v2)</button>
+  <a href="https://github.com/bitqs/juice-lab" target="_blank" rel="noopener">GitHub</a>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
