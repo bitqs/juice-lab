@@ -11,13 +11,13 @@
 <header>
   <h1 id="title">⚔️ Juice Lab</h1>
   <p class="sub" id="subtitle"></p>
+  <button id="auto-btn" class="btn-secondary"></button>
   <button id="lang-btn" class="btn-ghost">中文</button>
 </header>
 
 <main>
   <section id="stage">
     <canvas id="game" width="640" height="440"></canvas>
-    <div id="stage-hint"></div>
     <button id="ab-btn" class="btn-secondary"><span id="ab-label"></span><span id="ab-state"></span></button>
     <button id="ult-btn-dom" class="btn-primary" hidden>⚡ ULT</button>
     <button id="view-btn" class="btn-secondary">🎥</button>
@@ -25,7 +25,10 @@
 
   <aside id="panel">
     <div id="step-card">
-      <div id="step-tag">STEP 0</div>
+      <div id="card-head">
+        <div id="step-tag">STEP 0</div>
+        <span id="card-fold">▾</span>
+      </div>
       <h2 id="step-name">裸命中</h2>
       <p id="step-desc">说明加载中…</p>
       <div id="step-params"></div>
@@ -52,7 +55,6 @@
 </div>
 
 <footer>
-  <button id="auto-btn" class="btn-ghost"></button>
   <button id="gif-btn" class="btn-ghost"></button>
   <a href="https://github.com/bitqs/juice-lab" target="_blank" rel="noopener">GitHub</a>
 </footer>

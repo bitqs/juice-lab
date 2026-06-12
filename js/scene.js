@@ -273,7 +273,7 @@ export function createScene(juice) {
 
     const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
     const jx = d.selfFreeze > 0 ? (Math.random() * 2 - 1) * 2 : 0;
-    ctx.translate(p.x + (wob + jx) * p.s, p.y - (60 - d.dy * 0.4) * p.s);
+    ctx.translate(p.x + (wob + jx) * p.s, p.y - (60 + d.dy * 0.5) * p.s);
     ctx.scale(2.0 * p.s, 2.0 * p.s);
     if (d.alive) ctx.rotate(d.staggerT * 0.14);
     if (d.spawnPop > 0) {
@@ -533,7 +533,30 @@ export function createScene(juice) {
 
     const flashing = d.flashT > 0;
 
-    // 两段式尸体:沿斜切线分离滑开(チャンバラ延迟两断)。side 视角包装器。
+    // 本体:SVG 精灵(闪白=全白变体,尸体=压暗变体;未就绪回退简易桶)
+    if (sprites.ready) {
+      const img = flashing ? sprites.dummyWhite : (d.alive ? sprites.dummy : sprites.dummyDark);
+      ctx.drawImage(img, -36, -d.h / 2 - 16, 72, 100);
+    } else {
+      ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
+      ctx.beginPath();
+      ctx.roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 8);
+      ctx.fill();
+    }
+
+    // 血条(常显)
+    if (d.alive) {
+      const bw = 58, bh = 8, byy = -d.h / 2 - 20;
+      ctx.fillStyle = 'rgba(13,12,22,0.85)';
+      ctx.fillRect(-bw / 2 - 1, byy - 1, bw + 2, bh + 2);
+      const pct = d.hp / d.maxHp;
+      ctx.fillStyle = pct > 0.35 ? '#5dff8f' : '#ff5d5d';
+      ctx.fillRect(-bw / 2, byy, bw * pct, bh);
+    }
+    ctx.restore();
+  }
+
+  // 两段式尸体:沿斜切线分离滑开(チャンバラ延迟两断)。side 视角包装器。
   function drawSplitDummy(ctx) {
     const d = dummy;
     ctx.save();
@@ -577,29 +600,6 @@ export function createScene(juice) {
       ctx.restore();
     };
     half(false); half(true);
-  }
-
-    // 本体:SVG 精灵(闪白=全白变体,尸体=压暗变体;未就绪回退简易桶)
-    if (sprites.ready) {
-      const img = flashing ? sprites.dummyWhite : (d.alive ? sprites.dummy : sprites.dummyDark);
-      ctx.drawImage(img, -36, -d.h / 2 - 16, 72, 100);
-    } else {
-      ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
-      ctx.beginPath();
-      ctx.roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 8);
-      ctx.fill();
-    }
-
-    // 血条(常显)
-    if (d.alive) {
-      const bw = 58, bh = 8, byy = -d.h / 2 - 20;
-      ctx.fillStyle = 'rgba(13,12,22,0.85)';
-      ctx.fillRect(-bw / 2 - 1, byy - 1, bw + 2, bh + 2);
-      const pct = d.hp / d.maxHp;
-      ctx.fillStyle = pct > 0.35 ? '#5dff8f' : '#ff5d5d';
-      ctx.fillRect(-bw / 2, byy, bw * pct, bh);
-    }
-    ctx.restore();
   }
 
   return {

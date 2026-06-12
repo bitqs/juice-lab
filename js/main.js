@@ -95,7 +95,6 @@ function renderToggles() {
 function renderStatic() {
   document.getElementById('title').textContent = t('title');
   document.getElementById('subtitle').textContent = t('subtitle');
-  document.getElementById('stage-hint').textContent = t('hint');
   document.getElementById('ab-label').textContent = t('ab');
   document.getElementById('ab-state').textContent = abShowingBase ? t('abBase') : t('abCurrent');
   document.getElementById('prev').textContent = t('prev');
@@ -192,6 +191,13 @@ document.getElementById('max-btn').onclick = () => applyStep(STEPS.length - 1);
 document.getElementById('view-btn').onclick = () => {
   scene.setView(scene.view === 'side' ? 'ots' : 'side');
   renderStatic();
+};
+
+// 说明卡折叠:点头部收起正文,手机省屏
+document.getElementById('card-head').onclick = () => {
+  const card = document.getElementById('step-card');
+  card.classList.toggle('collapsed');
+  document.getElementById('card-fold').textContent = card.classList.contains('collapsed') ? '▸' : '▾';
 };
 
 // ---------- 主循环 ----------
