@@ -217,7 +217,8 @@ export function buildModules(juice, scene, time) {
 
   // ⑫ 剑气 — 挥砍命中后飞出新月形斩击波,远程二段命中(伤害 40%)
   juice.register({
-    id: 'wave', name: { en: '⑫ Sword wave', zh: '⑫ 剑气' }, enabled: false,
+    id: 'wave', screen: true, name: { en: '⑫ Sword wave', zh: '⑫ 剑气' }, enabled: false,
+    // screen:true + 自带双视角绘制:side 下屏幕系=世界系;OTS 下自己做深度投影(真·飞向纵深)
     _waves: [],
     onHit({ melee, dir }) {
       if (!melee) return;                                 // 剑气的命中不再生剑气
@@ -237,7 +238,14 @@ export function buildModules(juice, scene, time) {
     onDraw({ ctx }) {
       for (const w of this._waves) {
         ctx.save();
-        ctx.translate(w.x, w.y);
+        if (scene.view === 'ots') {
+          // 深度投影:越飞越深越小,直奔灭点
+          const p = scene.proj(Math.max(0, w.x - scene.player.x));
+          ctx.translate(p.x, p.y - 64 * p.s);
+          ctx.scale(p.s * 2.4, p.s * 2.4);
+        } else {
+          ctx.translate(w.x, w.y);
+        }
         const a = w.hit ? 0.25 : 0.9;
         // 新月:两段圆弧裁出的月牙,青白渐变 + 残尾
         for (let i = 0; i < 3; i++) {

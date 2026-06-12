@@ -258,7 +258,7 @@ export function createScene(juice) {
     if (!d.alive && d.split) {                            // 居合两断(投影空间)
       ctx.save();
       ctx.translate(p.x, p.y - 60 * p.s);
-      ctx.scale(2.0 * p.s, 2.0 * p.s);
+      ctx.scale(2.9 * p.s, 2.9 * p.s);
       drawSplitLocal(ctx);
       ctx.restore();
       return;
@@ -268,13 +268,13 @@ export function createScene(juice) {
     // 影子
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y + 4, 56 * p.s, 13 * p.s, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x, p.y + 4, 78 * p.s, 17 * p.s, 0, 0, Math.PI * 2);
     ctx.fill();
 
     const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
     const jx = d.selfFreeze > 0 ? (Math.random() * 2 - 1) * 2 : 0;
     ctx.translate(p.x + (wob + jx) * p.s, p.y - (60 + d.dy * 0.5) * p.s);
-    ctx.scale(2.0 * p.s, 2.0 * p.s);
+    ctx.scale(2.9 * p.s, 2.9 * p.s);
     if (d.alive) ctx.rotate(d.staggerT * 0.14);
     if (d.spawnPop > 0) {
       const pp = 1 - d.spawnPop / 0.22;
@@ -536,7 +536,7 @@ export function createScene(juice) {
     // 本体:SVG 精灵(闪白=全白变体,尸体=压暗变体;未就绪回退简易桶)
     if (sprites.ready) {
       const img = flashing ? sprites.dummyWhite : (d.alive ? sprites.dummy : sprites.dummyDark);
-      ctx.drawImage(img, -36, -d.h / 2 - 16, 72, 100);
+      ctx.drawImage(img, -41, -d.h / 2 - 24, 83, 115);
     } else {
       ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
       ctx.beginPath();
@@ -605,7 +605,7 @@ export function createScene(juice) {
   return {
     player, dummy, flags, input, REACH,
     attack, applyHit, update, draw, W, H, GROUND,
-    playerScreen, projDummy,
+    playerScreen, projDummy, proj,
     get view() { return view; },
     setView(v) { view = v; },
   };
