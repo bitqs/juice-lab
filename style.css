@@ -131,8 +131,10 @@ main {
   position: absolute;
   bottom: 14px;
   right: 14px;          /* 右下:不压充能条 */
+  top: auto;            /* 通用 button 规则有 top:0(按压效果),绝对定位下会和 bottom 同锚把按钮拉满高 */
   animation: ult-pulse 0.9s ease-in-out infinite;
 }
+#ult-btn-dom:active { top: auto; }
 @keyframes ult-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.07); filter: brightness(1.3); }
@@ -268,26 +270,35 @@ footer {
 footer a { color: var(--dim); }
 
 @media (max-width: 768px) {
-  body { padding: 10px; gap: 10px; padding-bottom: 86px; }
+  body { padding: 10px; gap: 10px; padding-bottom: 118px; }
   main { flex-direction: column; }
   #game { width: 100%; height: auto; aspect-ratio: 640/440; }
   #toggles { grid-template-columns: 1fr 1fr; font-size: 11px; }
   /* 触摸热区加大 */
   button { padding: 12px 14px; font-size: 14px; }
   .dot { width: 13px; height: 13px; }
-  /* 步进条吸底:竖屏拇指可达 */
+  /* 步进条吸底:竖屏拇指可达。点阵独占一整行(否则 19 点折 4 行撑爆高度盖住内容) */
   #stepper {
     position: fixed;
     bottom: 0; left: 0; right: 0;
     background: rgba(10,10,18,0.95);
     border-top: 1px solid var(--line);
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
     width: 100%;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
     z-index: 10;
   }
-  #dots { flex-wrap: wrap; justify-content: center; max-width: 42vw; }
+  #dots {
+    order: -1;
+    flex-basis: 100%;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 4px;
+    max-width: none;
+  }
+  .dot { width: 11px; height: 11px; }
   #stage-hint { font-size: 10px; }
   #lang-btn, #auto-btn { position: static; margin-top: 6px; }
   header { display: flex; flex-direction: column; align-items: center; }
