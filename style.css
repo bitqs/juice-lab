@@ -76,6 +76,12 @@ main {
   right: 10px;
 }
 
+#view-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+
 #panel {
   flex: 1;
   display: flex;

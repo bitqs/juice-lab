@@ -191,6 +191,8 @@ export function buildModules(juice, scene, time) {
     id: 'smear', name: { en: '⑪ Smear frames', zh: '⑪ 挥砍残影' }, enabled: false,
     _trail: [],
     onUpdate({ dt }) {
+      // OTS 视角下剑骨骼是背影,残影改由斩击弧承担,这里不画
+      if (scene.view === 'ots') { this._trail.length = 0; return; }
       const s = scene.player.swordInfo;
       if (s && s.active) this._trail.push({ ...s, t: 0 });
       for (const tr of this._trail) tr.t += dt;
@@ -257,7 +259,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑬ 打击帧(インパクトフレーム)— 重击瞬间整屏白黒反转 2-3 帧,眼睛的"接触确认"
   juice.register({
-    id: 'impactframe', name: { en: '⑬ Impact frame', zh: '⑬ 打击帧(反转)' }, enabled: false,
+    id: 'impactframe', screen: true, name: { en: '⑬ Impact frame', zh: '⑬ 打击帧(反转)' }, enabled: false,
     _frames: 0,
     onHit({ crit, kill }) { if (crit || kill) this._frames = 3; },
     onDraw({ ctx }) {
@@ -309,7 +311,7 @@ export function buildModules(juice, scene, time) {
     { ch: 'SSS', color: '#ff5d5d' },
   ];
   juice.register({
-    id: 'style', name: { en: '⑮ Style rank (DMC)', zh: '⑮ 风格评价(DMC)' }, enabled: false,
+    id: 'style', screen: true, name: { en: '⑮ Style rank (DMC)', zh: '⑮ 风格评价(DMC)' }, enabled: false,
     _gauge: 0, _combo: 0, _comboT: 0, _rank: -1, _pulse: 0,
     onHit({ crit, kill, melee }) {
       // 多样性给分更高:暴击/剑气二段/击杀 > 重复普攻
@@ -363,7 +365,8 @@ export function buildModules(juice, scene, time) {
     _zoomT: 0,
     onHit({ target, crit, kill, dir }) {
       time.skip = 0.03;                                   // 每次命中吞 30ms — "去一帧"更狠
-      time.zoom.cx = target.x; time.zoom.cy = target.y - 20;
+      if (scene.view === 'ots') { time.zoom.cx = scene.projDummy.x; time.zoom.cy = scene.projDummy.y; }
+      else { time.zoom.cx = target.x; time.zoom.cy = target.y - 20; }
       // 镜头后坐:沿攻击方向顶一下镜头(方向性,区别于随机屏震)
       time.kick.x = dir * (kill ? 7 : crit ? 5 : 2.5);
       time.kick.y = -(kill ? 3 : 1.5);
@@ -398,7 +401,7 @@ export function buildModules(juice, scene, time) {
 
   // ⑰ 大招 — 综合演出:蓄力槽 → 时停拔刀 → 三连斩线 → 终镇。所有层一次性合奏
   juice.register({
-    id: 'ultimate', name: { en: '⑰ Ultimate', zh: '⑰ 大招(综合)' }, enabled: false,
+    id: 'ultimate', screen: true, name: { en: '⑰ Ultimate', zh: '⑰ 大招(综合)' }, enabled: false,
     _charge: 0, _state: null, _t: 0, _bars: 0, _slashes: [], _aura: 0,
     onHit({ crit, kill }) {
       if (this._state) return;
@@ -514,9 +517,11 @@ export function buildModules(juice, scene, time) {
 
       // ③ 蓄力:光环收束 + 主角金光 + 雷电
       if (st === 'charge') {
-        const p = scene.player, a = this._aura;
+        const a = this._aura;
+        const ax = scene.view === 'ots' ? scene.playerScreen.x : scene.player.x;
+        const ay = scene.view === 'ots' ? scene.playerScreen.y - 40 : scene.player.y - 10;
         ctx.save();
-        ctx.translate(p.x, p.y - 10);
+        ctx.translate(ax, ay);
         for (let i = 0; i < 4; i++) {
           const r = (1 - ((a * 1.6 + i * 0.25) % 1)) * 90 + 8;
           ctx.strokeStyle = `rgba(255,211,77,${0.6 - r / 180})`;

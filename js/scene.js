@@ -10,6 +10,22 @@ export function createScene(juice) {
   const input = { left: false, right: false };   // 移动输入(A/D 或长按)
   const REACH = 118;                     // 攻击距离:超出挥空
 
+  // ---- 视角系统:side(教学侧视) / ots(过肩伪3D沉浸) ----
+  let view = 'side';
+  const VP = { x: 356, y: 168 };         // 灭点
+  const PK = 300;                        // 透视系数:scale = PK/(PK+depth)
+  // 把"与玩家的距离"投影成屏幕位置与缩放(沿中央车道)
+  function proj(gap) {
+    const s = PK / (PK + Math.max(0, gap));
+    return {
+      x: VP.x + (322 - VP.x) * s,
+      y: VP.y + (418 - VP.y) * s,
+      s,
+    };
+  }
+  const playerScreen = { x: 196, y: 408 };       // OTS 主角固定屏幕位
+  const projDummy = { x: 0, y: 0, s: 1 };        // 每帧更新,供 juice 模块取景
+
   const player = {
     x: 330, y: GROUND, w: 34, h: 56,
     facing: 1,
@@ -20,7 +36,18 @@ export function createScene(juice) {
     windupT: -1,          // 前摇进度(flags.commitment 时启用)
     recoverT: 0,          // 后摇剩余秒(期间不可再攻)
     swordInfo: null,      // 每帧更新 {px, py, angle, active} 供残影模块读
+    combo: 0,             // 4级连击:当前段(0-3),窗口内连按推进
+    comboWindow: 0,       // 连击窗口剩余秒
+    swingStage: 0,        // 本次挥砍所属段(动画用)
   };
+
+  // 4 级连击表:伤害倍率 / 动画时长倍率 / 前冲倍率;第4段必暴击(终结段)
+  const COMBO = [
+    { mult: 1.0, durM: 1.0, lungeM: 1.0 },
+    { mult: 1.1, durM: 0.92, lungeM: 1.1 },
+    { mult: 1.3, durM: 0.88, lungeM: 1.6 },   // 突刺
+    { mult: 1.8, durM: 1.35, lungeM: 1.2 },   // 大上段终结
+  ];
 
   const dummy = {
     x: 430, y: GROUND, w: 44, h: 64,
@@ -37,17 +64,18 @@ export function createScene(juice) {
   function attack() {
     if (player.attackT >= 0 || player.windupT >= 0) return;   // 攻击中
     if (player.recoverT > 0) return;                          // 后摇硬直,不可取消
+    player.swingStage = player.combo;                         // 锁定本次挥砍的段位
     if (flags.commitment) { player.windupT = 0; }             // 前摇起手
     else { player.attackT = 0; player.didHit = false; }
   }
 
   // 共用命中管线:近战与剑气(melee=false)都走这里
-  function applyHit(mult = 1, { melee = true } = {}) {
-    if (!dummy.alive) return;
+  function applyHit(mult = 1, { melee = true, forceCrit = false } = {}) {
+    if (!dummy.alive) return false;
     // 近战有距离:够不着就挥空(spacing 是格斗的一半)
-    if (melee && Math.abs(player.x - dummy.x) > REACH) return;
+    if (melee && Math.abs(player.x - dummy.x) > REACH) return false;
     const base = 8 + Math.floor(Math.random() * 7);      // 8-14
-    const crit = Math.random() < 0.12;
+    const crit = forceCrit || Math.random() < 0.12;
     const final = Math.max(1, Math.round(base * mult * (crit ? 2.5 : 1)));
     dummy.hp -= final;
     const kill = dummy.hp <= 0;
@@ -60,9 +88,20 @@ export function createScene(juice) {
       juice.fire('onKill', { target: dummy, dir });
     }
     juice.fire('onHit', { target: dummy, dmg: final, crit, kill, dir, melee });
+    return true;
   }
 
-  function tryHit() { applyHit(1, { melee: true }); }
+  function tryHit() {
+    const st = player.swingStage;
+    const landed = applyHit(COMBO[st].mult, { melee: true, forceCrit: st === 3 });  // 第4段=必暴击终结
+    if (landed) {
+      // 命中推进连击;窗口 0.9s 内接下一段
+      player.combo = (st + 1) % 4;
+      player.comboWindow = 0.9;
+    } else {
+      player.combo = 0; player.comboWindow = 0;          // 挥空断连击
+    }
+  }
 
   function update(dt) {
     worldT += dt;
@@ -87,9 +126,13 @@ export function createScene(juice) {
     // 碰撞分离:不能穿过活着的假人(相对位置恒定,剑永远朝向目标)
     if (dummy.alive) player.x = Math.min(player.x, dummy.x - 64);
 
+    // 连击窗口倒数,断了归零
+    player.comboWindow = Math.max(0, player.comboWindow - dt);
+    if (player.comboWindow === 0 && player.attackT < 0 && player.windupT < 0) player.combo = 0;
+
     // 攻击动画推进;命中点在进度 0.55
     if (player.attackT >= 0) {
-      player.attackT += dt / player.attackDur;
+      player.attackT += dt / (player.attackDur * COMBO[player.swingStage].durM);
       if (!player.didHit && player.pace(Math.min(player.attackT, 1)) >= 0.55) {
         player.didHit = true;
         tryHit();
@@ -128,10 +171,146 @@ export function createScene(juice) {
   let worldT = 0;                                        // 场景时钟(呼吸/火把用)
 
   function draw(ctx) {
+    if (view === 'ots') {
+      drawBackgroundOTS(ctx);
+      drawDummyOTS(ctx);
+      drawPlayerOTS(ctx);
+      drawVignette(ctx);
+      return;
+    }
     drawBackground(ctx);
     drawPlayer(ctx);
     drawDummy(ctx);
     drawVignette(ctx);
+  }
+
+  // ---- OTS 渲染器 ----
+  function drawBackgroundOTS(ctx) {
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#11101f');
+    sky.addColorStop(0.55, '#171527');
+    sky.addColorStop(1, '#0d0c16');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    // 星
+    for (let i = 0; i < 12; i++) {
+      const sx = (i * 151.3) % W, sy = (i * 71.7) % (VP.y - 24);
+      const tw = 0.5 + 0.5 * Math.sin(worldT * 2 + i * 1.7);
+      ctx.fillStyle = `rgba(232,232,240,${0.06 + 0.16 * tw})`;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    // 地平线
+    ctx.strokeStyle = '#262440';
+    ctx.beginPath(); ctx.moveTo(0, VP.y + 14); ctx.lineTo(W, VP.y + 14); ctx.stroke();
+    // 透视地面:横线按深度密度递增,纵线向灭点收束
+    ctx.strokeStyle = 'rgba(38,36,64,0.9)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 9; i++) {
+      const p = proj(i * i * 14);
+      ctx.beginPath(); ctx.moveTo(0, p.y + 26 * p.s); ctx.lineTo(W, p.y + 26 * p.s); ctx.stroke();
+    }
+    for (let i = -5; i <= 6; i++) {
+      ctx.beginPath();
+      ctx.moveTo(VP.x + i * 18, VP.y + 14);
+      ctx.lineTo(VP.x + i * 160, H + 40);
+      ctx.stroke();
+    }
+  }
+
+  function drawDummyOTS(ctx) {
+    const d = dummy;
+    const gap = Math.max(8, d.x - player.x);
+    const p = proj(gap);
+    projDummy.x = p.x; projDummy.y = p.y - 60 * p.s; projDummy.s = p.s;
+
+    if (!d.alive && d.split) {                            // 居合两断(投影空间)
+      ctx.save();
+      ctx.translate(p.x, p.y - 60 * p.s);
+      ctx.scale(2.0 * p.s, 2.0 * p.s);
+      drawSplitLocal(ctx);
+      ctx.restore();
+      return;
+    }
+
+    ctx.save();
+    // 影子
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 4, 56 * p.s, 13 * p.s, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
+    const jx = d.selfFreeze > 0 ? (Math.random() * 2 - 1) * 2 : 0;
+    ctx.translate(p.x + (wob + jx) * p.s, p.y - (60 - d.dy * 0.4) * p.s);
+    ctx.scale(2.0 * p.s, 2.0 * p.s);
+    if (d.alive) ctx.rotate(d.staggerT * 0.14);
+    if (d.spawnPop > 0) {
+      const pp = 1 - d.spawnPop / 0.22;
+      const s2 = 0.4 + pp * 0.75 - Math.sin(pp * Math.PI) * 0.12;
+      ctx.scale(s2, s2);
+    }
+    if (d.squashT > 0 && d.alive) {
+      const q = Math.sin(d.squashT * Math.PI) * 0.18;
+      ctx.scale(1 + q, 1 - q);
+    }
+    if (!d.alive) ctx.rotate(0.5);
+    if (sprites.ready) {
+      const img = d.flashT > 0 ? sprites.dummyWhite : (d.alive ? sprites.dummy : sprites.dummyDark);
+      ctx.drawImage(img, -36, -50, 72, 100);
+    }
+    // 血条
+    if (d.alive) {
+      ctx.fillStyle = 'rgba(13,12,22,0.85)';
+      ctx.fillRect(-30, -66, 60, 7);
+      const pct = d.hp / d.maxHp;
+      ctx.fillStyle = pct > 0.35 ? '#5dff8f' : '#ff5d5d';
+      ctx.fillRect(-29, -65, 58 * pct, 5);
+    }
+    ctx.restore();
+  }
+
+  function drawPlayerOTS(ctx) {
+    const t = player.attackT >= 0 ? player.pace(Math.min(player.attackT, 1)) : -1;
+    const winding = player.windupT >= 0;
+    const bob = (t < 0 && !winding) ? Math.sin(worldT * 3) * 3 : 0;
+    const lungeZ = t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 0.08;  // 前冲=微缩进纵深
+    ctx.save();
+    ctx.translate(playerScreen.x, playerScreen.y + bob);
+    const sc = 2.3 * (1 - lungeZ) * (winding ? 1.03 : 1);
+    ctx.scale(sc, sc);
+    // 影子
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.ellipse(0, 46, 26, 7, 0, 0, Math.PI * 2); ctx.fill();
+    if (sprites.ready) ctx.drawImage(sprites.knightBack, -32, -48, 64, 96);
+    ctx.restore();
+
+    // 连击段位 pips(主角头顶)
+    ctx.save();
+    ctx.translate(playerScreen.x, playerScreen.y + bob);
+    drawComboPips(ctx, 0, -120);
+    ctx.restore();
+
+    // 挥砍表现:斩击弧出现在假人深度处(力落在哪,画在哪);四段四个方向
+    if (t > 0.3 && t < 0.98) {
+      const p = projDummy;
+      const sw = (t - 0.3) / 0.68;
+      const st = player.swingStage;
+      const baseAng = st === 1 ? 2.3 : st === 2 ? 0 : st === 3 ? -1.2 : -0.7;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(baseAng + sw * (st === 2 ? 0.3 : 1.5));
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 - sw * 0.6})`;
+      ctx.lineWidth = 5 * p.s;
+      ctx.beginPath();
+      ctx.arc(0, 0, 86 * p.s, -1.0, 0.4);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(150,220,255,${0.4 * (1 - sw)})`;
+      ctx.lineWidth = 11 * p.s;
+      ctx.beginPath();
+      ctx.arc(0, 0, 86 * p.s, -1.0, 0.4);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawBackground(ctx) {
@@ -171,8 +350,8 @@ export function createScene(juice) {
     const t = player.attackT >= 0 ? player.pace(Math.min(player.attackT, 1)) : -1;
     const winding = player.windupT >= 0;                  // 前摇中
     const recovering = player.recoverT > 0;               // 后摇中
-    // 攻击前冲:挥砍时身体向前突进;前摇时反向蓄(重心后坐)
-    const lunge = winding ? -8 : (t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 22);
+    // 攻击前冲:挥砍时身体向前突进;前摇时反向蓄(重心后坐);连击段越深冲越猛
+    const lunge = winding ? -8 : (t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 22 * COMBO[player.swingStage].lungeM);
     const bob = (t < 0 && !winding) ? Math.sin(worldT * 3) * 2 : 0;   // idle 呼吸
     ctx.save();
     ctx.translate(player.x + lunge, player.y + bob);
@@ -202,11 +381,18 @@ export function createScene(juice) {
     const styleMod = juice.modules.find(m => m.id === 'style');
     const burning = styleMod && styleMod.enabled && styleMod._rank >= 3;
 
-    // 剑:idle 扛肩;前摇举到最高;攻击从上劈下(pace 映射);后摇收剑在前下方
+    // 剑:idle 扛肩;前摇举到最高;后摇收剑在前下方
+    // 4 级连击四套挥法:下劈 / 上撩 / 突刺(横持) / 大上段
+    const st = player.swingStage;
+    const swingAngle =
+      st === 1 ? (0.72 - t * 2.85)                 // 上撩:由下向上反扫
+      : st === 2 ? (-1.05 + Math.sin(t * Math.PI) * 0.12)  // 突刺:横持微抖,靠 lunge 出力
+      : st === 3 ? (-2.75 + t * 3.4)               // 大上段:举更高劈更深
+      : (-2.1 + t * 2.75);                          // 基础下劈
     const angle = winding ? (-2.45 - (player.windupT / 0.10) * 0.5)
                 : recovering && t < 0 ? 0.72
                 : t < 0 ? -2.45
-                : (-2.1 + t * 2.75);
+                : swingAngle;
     // 供残影/剑气模块读取的剑骨骼信息(世界坐标)
     player.swordInfo = {
       px: player.x + lunge + w / 2 - 2,
@@ -251,7 +437,20 @@ export function createScene(juice) {
     ctx.fillRect(-2.5, 2, 5, 10);                         // 柄
     ctx.restore();
 
+    drawComboPips(ctx, 0, -h / 2 - 26);
     ctx.restore();
+  }
+
+  // 连击段位指示:Ⅰ-Ⅳ 四点,亮 = 已连到;第4点红(终结段)
+  function drawComboPips(ctx, cx, cy) {
+    if (player.combo === 0 && player.comboWindow === 0) return;
+    for (let i = 0; i < 4; i++) {
+      const lit = i < (player.combo === 0 ? 4 : player.combo);
+      ctx.fillStyle = lit ? (i === 3 ? '#ff5d5d' : '#ffd34d') : 'rgba(136,136,160,0.35)';
+      ctx.beginPath();
+      ctx.arc(cx - 15 + i * 10, cy, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function drawDummy(ctx) {
@@ -291,18 +490,24 @@ export function createScene(juice) {
 
     const flashing = d.flashT > 0;
 
-    // 两段式尸体:沿斜切线分离滑开(チャンバラ延迟两断)
+    // 两段式尸体:沿斜切线分离滑开(チャンバラ延迟两断)。side 视角包装器。
   function drawSplitDummy(ctx) {
     const d = dummy;
-    const prog = Math.min(1, (1 - d.respawnT) * 2.2);     // 分离进度
-    const slide = prog * 26, drop = prog * prog * 30;
     ctx.save();
     ctx.translate(d.x, d.y);
-    // 影子
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     ctx.beginPath();
     ctx.ellipse(0, d.h / 2 + 8, 30, 7, 0, 0, Math.PI * 2);
     ctx.fill();
+    drawSplitLocal(ctx);
+    ctx.restore();
+  }
+
+  // 原点局部坐标版:side / OTS 共用
+  function drawSplitLocal(ctx) {
+    const d = dummy;
+    const prog = Math.min(1, (1 - d.respawnT) * 2.2);     // 分离进度
+    const slide = prog * 26, drop = prog * prog * 30;
     const half = (top) => {
       ctx.save();
       // 斜切线约 -20°:上半沿攻击方向滑出并翻转
@@ -329,7 +534,6 @@ export function createScene(juice) {
       ctx.restore();
     };
     half(false); half(true);
-    ctx.restore();
   }
 
     // 本体:SVG 精灵(闪白=全白变体,尸体=压暗变体;未就绪回退简易桶)
@@ -355,5 +559,11 @@ export function createScene(juice) {
     ctx.restore();
   }
 
-  return { player, dummy, flags, input, REACH, attack, applyHit, update, draw, W, H, GROUND };
+  return {
+    player, dummy, flags, input, REACH,
+    attack, applyHit, update, draw, W, H, GROUND,
+    playerScreen, projDummy,
+    get view() { return view; },
+    setView(v) { view = v; },
+  };
 }

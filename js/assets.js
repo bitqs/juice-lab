@@ -49,6 +49,35 @@ const KNIGHT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 96">
 <path d="M30 7 Q28 -2 36 -1 Q33 2 34 7 Z" fill="#ff5d5d"/>
 </svg>`;
 
+// 背影(过肩视角用):披风为主体,盔后脑+红缨,右肩探出剑柄
+const KNIGHT_BACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 96">
+<defs>
+  <linearGradient id="capeB" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#2e4a7c"/><stop offset="1" stop-color="#16243d"/>
+  </linearGradient>
+  <linearGradient id="helmB" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#7eb0ef"/><stop offset="1" stop-color="#3a619e"/>
+  </linearGradient>
+</defs>
+<!-- 腿(披风下缘露出) -->
+<rect x="22" y="84" width="9" height="10" rx="2" fill="#141b2e"/>
+<rect x="34" y="84" width="9" height="10" rx="2" fill="#1a2238"/>
+<!-- 披风主体 -->
+<path d="M16 30 Q32 24 48 30 L52 78 Q42 88 32 88 Q22 88 12 78 Z" fill="url(#capeB)"/>
+<path d="M20 32 Q22 60 21 80 M32 30 Q32 60 32 86 M44 32 Q42 60 43 80" stroke="#1d3050" stroke-width="2" fill="none"/>
+<!-- 肩甲 -->
+<ellipse cx="20" cy="30" rx="8" ry="6.5" fill="url(#helmB)"/>
+<ellipse cx="44" cy="30" rx="8" ry="6.5" fill="url(#helmB)"/>
+<!-- 探出右肩的剑柄 -->
+<rect x="47" y="10" width="4" height="16" rx="2" fill="#8a6d3b" transform="rotate(14 49 18)"/>
+<rect x="43" y="20" width="13" height="4" rx="2" fill="#caa84e" transform="rotate(14 49 22)"/>
+<!-- 头盔后脑 -->
+<path d="M23 22 Q23 8 32 8 Q41 8 41 22 Q32 26 23 22 Z" fill="url(#helmB)"/>
+<rect x="23" y="20" width="18" height="3" fill="#2c4d80"/>
+<!-- 盔缨 -->
+<path d="M29 9 Q26 -1 35 0 Q31 3 33 9 Z" fill="#ff5d5d"/>
+</svg>`;
+
 const DUMMY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 100">
 <defs>
   <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
@@ -109,15 +138,16 @@ function makeVariant(img, mode) {
 
 export const sprites = {
   knight: svgToImage(KNIGHT_SVG),
+  knightBack: svgToImage(KNIGHT_BACK_SVG),
   dummy: svgToImage(DUMMY_SVG),
   knightWhite: null, dummyWhite: null, dummyDark: null,
   ready: false,
 };
 
 let loaded = 0;
-for (const img of [sprites.knight, sprites.dummy]) {
+for (const img of [sprites.knight, sprites.knightBack, sprites.dummy]) {
   img.onload = () => {
-    if (++loaded === 2) {
+    if (++loaded === 3) {
       sprites.knightWhite = makeVariant(sprites.knight, 'white');
       sprites.dummyWhite = makeVariant(sprites.dummy, 'white');
       sprites.dummyDark = makeVariant(sprites.dummy, 'dark');

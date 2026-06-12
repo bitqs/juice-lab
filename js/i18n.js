@@ -34,6 +34,8 @@ export const UI = {
     ultBtn: '⚡ ULT',
     poseLine: '...it is already cut.',
     step: 'STEP',
+    viewSide: '🎥 Side view',
+    viewOTS: '🎥 Over-shoulder',
   },
   zh: {
     title: '⚔️ Juice Lab · 打击感实验室',
@@ -57,5 +59,7 @@ export const UI = {
     ultBtn: '⚡ 大招',
     poseLine: '……斬り終わった。',
     step: 'STEP',
+    viewSide: '🎥 侧视',
+    viewOTS: '🎥 过肩',
   },
 };

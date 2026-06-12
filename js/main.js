@@ -108,6 +108,7 @@ function renderStatic() {
   document.getElementById('gif-btn').textContent = t('gif');
   document.getElementById('ult-btn-dom').textContent = t('ultBtn');
   document.getElementById('lang-btn').textContent = L === 'en' ? '中文' : 'EN';
+  document.getElementById('view-btn').textContent = scene.view === 'side' ? t('viewOTS') : t('viewSide');
 }
 
 document.getElementById('prev').onclick = () => applyStep(step - 1);
@@ -188,6 +189,10 @@ document.getElementById('lang-btn').onclick = () => {
   renderStatic(); renderUI();
 };
 document.getElementById('max-btn').onclick = () => applyStep(STEPS.length - 1);
+document.getElementById('view-btn').onclick = () => {
+  scene.setView(scene.view === 'side' ? 'ots' : 'side');
+  renderStatic();
+};
 
 // ---------- 主循环 ----------
 let last = performance.now();
@@ -264,7 +269,20 @@ function frame(now) {
     ctx.translate(-z.cx, -z.cy);
   }
   scene.draw(ctx);
-  juice.fire('onDraw', { ctx });
+  if (scene.view === 'ots') {
+    // 世界空间特效(数字/粒子/贴片/剑气/切线):锚定假人投影位,按深度缩放
+    const p = scene.projDummy, d = scene.dummy;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.s * 1.6, p.s * 1.6);
+    ctx.translate(-d.x, -(d.y - 10));
+    for (const m of juice.modules) if (m.enabled && m.onDraw && !m.screen) m.onDraw({ ctx });
+    ctx.restore();
+    // 屏幕空间特效(反转帧/段位/大招演出):不进透视
+    for (const m of juice.modules) if (m.enabled && m.onDraw && m.screen) m.onDraw({ ctx });
+  } else {
+    juice.fire('onDraw', { ctx });
+  }
   ctx.restore();
 
   requestAnimationFrame(frame);
