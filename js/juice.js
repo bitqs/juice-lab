@@ -154,6 +154,7 @@ export function buildModules(juice, scene, time) {
   juice.register({
     id: 'sfx', name: { en: '⑧ Layered SFX', zh: '⑧ 音效分层' }, enabled: false,
     onHit({ crit, kill }) { sfx(kill ? 'kill' : crit ? 'crit' : 'hit'); },
+    onWhiff() { sfx('whiff'); },                   // 挥空风声:落空也是信息
   });
 
   // ⑨ タメツメ — 打击帧笔记:慢蓄(タメ)→ 瞬斩(ツメ),不对称配速

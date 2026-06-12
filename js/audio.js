@@ -34,6 +34,10 @@ export function sfx(kind) {
     // 斩线:高频噪声短爆
     noise(a, t, 0.07, 0.3);
     tone(a, t, 'triangle', 1800, 600, 0.06, 0.15);
+  } else if (kind === 'whiff') {
+    // 挥空:闷风声,明显比命中"空"
+    noise(a, t, 0.09, 0.12);
+    tone(a, t, 'sine', 220, 140, 0.08, 0.06);
   } else if (kind === 'shout') {
     // 招式名吼出:太鼓重击 + 中频吼(锯齿短扫)
     tone(a, t, 'sine', 90, 50, 0.3, 0.5);

@@ -100,8 +100,12 @@ export function createScene(juice) {
       player.comboWindow = 0.9;
     } else {
       player.combo = 0; player.comboWindow = 0;          // 挥空断连击
+      misses.push({ t: 0 });                             // 挥空要可见(MISS 提示)
+      juice.fire('onWhiff', {});
     }
   }
+
+  const misses = [];                                     // 挥空提示队列
 
   function update(dt) {
     worldT += dt;
@@ -166,6 +170,32 @@ export function createScene(juice) {
     dummy.wobble = Math.max(0, dummy.wobble - dt * 4);
     dummy.staggerT = Math.max(0, dummy.staggerT - dt * 2.2);
     dummy.squashT = Math.max(0, (dummy.squashT || 0) - dt * 6);
+    for (const m of misses) m.t += 0.016;                // 真实节拍(冻结时也要走完)
+    while (misses.length && misses[0].t > 0.5) misses.shift();
+  }
+
+  // MISS 提示:挥空必须可见,不然玩家以为是 bug
+  function drawMisses(ctx) {
+    for (const m of misses) {
+      const a = 1 - m.t / 0.5;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.font = 'bold 15px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#8888a0';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 3;
+      let mx, my;
+      if (view === 'ots') {
+        const p = proj(Math.min(REACH, Math.max(8, dummy.x - player.x)));
+        mx = p.x; my = p.y - 90 * p.s - m.t * 30;
+      } else {
+        mx = player.x + REACH * 0.8; my = player.y - 50 - m.t * 30;
+      }
+      ctx.strokeText('MISS', mx, my);
+      ctx.fillText('MISS', mx, my);
+      ctx.restore();
+    }
   }
 
   let worldT = 0;                                        // 场景时钟(呼吸/火把用)
@@ -175,12 +205,14 @@ export function createScene(juice) {
       drawBackgroundOTS(ctx);
       drawDummyOTS(ctx);
       drawPlayerOTS(ctx);
+      drawMisses(ctx);
       drawVignette(ctx);
       return;
     }
     drawBackground(ctx);
     drawPlayer(ctx);
     drawDummy(ctx);
+    drawMisses(ctx);
     drawVignette(ctx);
   }
 
@@ -290,9 +322,20 @@ export function createScene(juice) {
     drawComboPips(ctx, 0, -120);
     ctx.restore();
 
-    // 挥砍表现:斩击弧出现在假人深度处(力落在哪,画在哪);四段四个方向
+    // 攻击距离地面标记:让"够不够得着"在空间上可读
+    {
+      const r = proj(REACH);
+      ctx.strokeStyle = 'rgba(255,211,77,0.22)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y + 4, 90 * r.s, 16 * r.s, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 挥砍表现:斩击弧画在剑实际够到的深度(够不着=落空在半路,一眼看出没碰到)
     if (t > 0.3 && t < 0.98) {
-      const p = projDummy;
+      const gap = Math.max(8, dummy.x - player.x);
+      const p = gap <= REACH ? projDummy : proj(REACH);
       const sw = (t - 0.3) / 0.68;
       const st = player.swingStage;
       const baseAng = st === 1 ? 2.3 : st === 2 ? 0 : st === 3 ? -1.2 : -0.7;
