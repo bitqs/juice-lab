@@ -121,6 +121,7 @@ window.addEventListener('keydown', (e) => {
 // ---------- 主循环 ----------
 let last = performance.now();
 function frame(now) {
+  const frameStart = last;
   let dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
@@ -138,14 +139,19 @@ function frame(now) {
   scene.update(dt);
   juice.fire('onUpdate', { dt });
 
-  // 屏震偏移(真实时间衰减,不受顿帧影响 — 顿帧时震动仍在走才有"砸"感)
+  // 屏震(真实时间衰减,不受顿帧影响 — 顿帧时震动仍在走才有"砸"感)
+  // 整屏震:画布内容 + 整个页面一起位移
   const sh = time.shake;
-  if (sh.mag > 0.1) {
+  const realDt = Math.min((now - frameStart) / 1000 + 0.016, 0.05);
+  if (sh.mag > 0.15) {
     sh.x = (Math.random() * 2 - 1) * sh.mag;
     sh.y = (Math.random() * 2 - 1) * sh.mag;
-    sh.mag *= Math.pow(0.0001, (now - last + 16) / 1000 / sh.decay);
-    sh.mag -= sh.decay * 60 * 0.016;
-  } else { sh.x = sh.y = 0; sh.mag = 0; }
+    sh.mag *= Math.exp(-realDt / (sh.decay * 0.45));
+    document.body.style.transform = `translate(${sh.x}px, ${sh.y}px)`;
+  } else if (sh.mag !== 0) {
+    sh.x = sh.y = 0; sh.mag = 0;
+    document.body.style.transform = '';
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();

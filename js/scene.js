@@ -47,6 +47,7 @@ export function createScene(juice) {
   }
 
   function update(dt) {
+    worldT += dt;
     // 攻击动画推进;命中点在进度 0.55
     if (player.attackT >= 0) {
       player.attackT += dt / player.attackDur;
@@ -74,40 +75,116 @@ export function createScene(juice) {
     dummy.wobble = Math.max(0, dummy.wobble - dt * 4);
   }
 
-  function draw(ctx) {
-    // 地面
-    ctx.strokeStyle = '#232338';
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND + 34);
-    ctx.lineTo(W, GROUND + 34);
-    ctx.stroke();
+  let worldT = 0;                                        // 场景时钟(呼吸/火把用)
 
+  function draw(ctx) {
+    drawBackground(ctx);
     drawPlayer(ctx);
     drawDummy(ctx);
+    drawVignette(ctx);
+  }
+
+  function drawBackground(ctx) {
+    // 夜空渐变
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#11101f');
+    sky.addColorStop(0.7, '#171527');
+    sky.addColorStop(1, '#0d0c16');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+
+    // 星星(固定伪随机,微闪,克制)
+    for (let i = 0; i < 16; i++) {
+      const sx = (i * 137.5) % W, sy = (i * 89.7) % 180;
+      const tw = 0.5 + 0.5 * Math.sin(worldT * 2 + i * 1.7);
+      ctx.fillStyle = `rgba(232,232,240,${0.08 + 0.18 * tw})`;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+
+    // 地台:石板地面
+    ctx.fillStyle = '#1e1c30';
+    ctx.fillRect(0, GROUND + 28, W, H - GROUND - 28);
+    ctx.fillStyle = '#262440';
+    ctx.fillRect(0, GROUND + 28, W, 4);
+  }
+
+  function drawVignette(ctx) {
+    const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, H * 0.85);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, W, H);
   }
 
   function drawPlayer(ctx) {
-    const { x, y, w, h } = player;
-    ctx.save();
-    ctx.translate(x, y);
-
-    // 身体
-    ctx.fillStyle = '#4d9fff';
-    ctx.fillRect(-w / 2, -h / 2, w, h);
-    // 眼
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(w / 2 - 12, -h / 2 + 10, 6, 6);
-
-    // 剑:idle 垂直背后;攻击时从上往前劈(角度由 pace 映射)
+    const { w, h } = player;
     const t = player.attackT >= 0 ? player.pace(Math.min(player.attackT, 1)) : -1;
-    const angle = t < 0 ? -2.4 : (-2.0 + t * 2.6);       // 弧度,劈向假人
+    // 攻击前冲:挥砍时身体向前突进(力量要有身体语言)
+    const lunge = t < 0 ? 0 : Math.sin(Math.min(t, 1) * Math.PI) * 22;
+    const bob = t < 0 ? Math.sin(worldT * 3) * 2 : 0;     // idle 呼吸
     ctx.save();
-    ctx.translate(w / 2 - 4, -h / 2 + 14);
+    ctx.translate(player.x + lunge, player.y + bob);
+
+    // 影子
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, h / 2 + 6 - bob, 22, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 披风(深色,随呼吸微摆)
+    ctx.fillStyle = '#2a3f66';
+    ctx.beginPath();
+    ctx.moveTo(-w / 2 + 2, -h / 2 + 8);
+    ctx.quadraticCurveTo(-w / 2 - 10 - bob, 0, -w / 2 - 5, h / 2 - 2);
+    ctx.lineTo(-w / 2 + 4, h / 2 - 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // 腿
+    ctx.fillStyle = '#27304a';
+    ctx.fillRect(-10, h / 2 - 18, 8, 18);
+    ctx.fillRect(3, h / 2 - 18, 8, 18);
+
+    // 躯干(铠甲两档色)
+    ctx.fillStyle = '#3f6fb5';
+    ctx.fillRect(-w / 2, -h / 2 + 12, w, h - 30);
+    ctx.fillStyle = '#5b8fd9';
+    ctx.fillRect(-w / 2, -h / 2 + 12, w, 8);              // 肩甲高光
+    ctx.fillStyle = '#2c4d80';
+    ctx.fillRect(-w / 2, h / 2 - 26, w, 8);               // 腰带暗部
+
+    // 头 + 头盔
+    ctx.fillStyle = '#e8c9a0';
+    ctx.fillRect(-9, -h / 2 - 4, 18, 16);                 // 脸
+    ctx.fillStyle = '#5b8fd9';
+    ctx.fillRect(-11, -h / 2 - 10, 22, 9);                // 盔
+    ctx.fillStyle = '#3f6fb5';
+    ctx.fillRect(-11, -h / 2 - 2, 22, 3);
+    ctx.fillStyle = '#1c1c28';
+    ctx.fillRect(2, -h / 2 + 2, 4, 4);                    // 眼
+
+    // 剑:idle 扛肩;攻击从上劈下(pace 映射)
+    const angle = t < 0 ? -2.45 : (-2.1 + t * 2.75);
+    ctx.save();
+    ctx.translate(w / 2 - 2, -h / 2 + 16);
     ctx.rotate(angle);
-    ctx.fillStyle = '#cfd6e4';
-    ctx.fillRect(-2, -46, 4, 46);                        // 剑身
+    // 挥砍轨迹残影(攻击中段)
+    if (t > 0.3 && t < 0.95) {
+      ctx.fillStyle = 'rgba(207,214,228,0.18)';
+      ctx.beginPath();
+      ctx.arc(0, 0, 52, -1.2, 0.5);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = '#dfe6f2';
+    ctx.fillRect(-2.5, -52, 5, 52);                       // 剑身
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-2.5, -52, 2, 52);                       // 刃高光
+    ctx.fillStyle = '#caa84e';
+    ctx.fillRect(-8, -2, 16, 4);                          // 护手
     ctx.fillStyle = '#8a6d3b';
-    ctx.fillRect(-3, -4, 6, 10);                         // 剑柄
+    ctx.fillRect(-2.5, 2, 5, 10);                         // 柄
     ctx.restore();
 
     ctx.restore();
@@ -118,29 +195,58 @@ export function createScene(juice) {
     ctx.save();
     const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
     ctx.translate(d.x + wob, d.y - d.dy);
-    if (!d.alive) ctx.rotate(0.35 * (d.respawnT < 1 ? 1 : 0));
+    if (!d.alive) ctx.rotate(0.55);
 
-    // 本体(木桩假人)
+    // 影子(贴地,不随尸体腾空)
+    ctx.save();
+    ctx.rotate(d.alive ? 0 : -0.55);
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(0, d.h / 2 + 8 + d.dy, 26 - d.dy * 0.05, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     const flashing = d.flashT > 0;
-    ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#c97b4a' : '#6e4a32');
-    ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h);
-    if (!flashing) {
-      ctx.fillStyle = '#a05c34';
-      ctx.fillRect(-d.w / 2, -d.h / 2 + 14, d.w, 6);     // 木纹
-      ctx.fillRect(-d.w / 2, d.h / 2 - 22, d.w, 6);
-      // 桩脸
-      ctx.fillStyle = '#3a2417';
-      ctx.fillRect(-10, -d.h / 2 + 26, 5, 5);
-      ctx.fillRect(5, -d.h / 2 + 26, 5, 5);
+
+    // 底座桩(插在地里)
+    if (d.alive) {
+      ctx.fillStyle = flashing ? '#ffffff' : '#5c4630';
+      ctx.fillRect(-6, d.h / 2 - 6, 12, 16);
     }
 
-    // 血条(假人头顶,常显)
+    // 本体(木桶身假人,两档木色 + 横箍)
+    ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
+    ctx.beginPath();
+    ctx.roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 8);
+    ctx.fill();
+    if (!flashing) {
+      ctx.fillStyle = d.alive ? '#9c5f2e' : '#54381f';
+      ctx.beginPath();
+      ctx.roundRect(-d.w / 2, -d.h / 2, d.w * 0.35, d.h, 8); // 左侧暗部
+      ctx.fill();
+      // 铁箍三道
+      ctx.fillStyle = '#3d3d52';
+      for (const ry of [-d.h / 2 + 10, -2, d.h / 2 - 14]) {
+        ctx.fillRect(-d.w / 2, ry, d.w, 5);
+      }
+      // 横臂(训练假人标志)
+      ctx.fillStyle = d.alive ? '#8a5a2c' : '#54381f';
+      ctx.fillRect(-d.w / 2 - 14, -d.h / 2 + 18, d.w + 28, 7);
+      // 草绳靶心
+      ctx.strokeStyle = '#d9b06a';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 6, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 6, 4, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // 血条(常显)
     if (d.alive) {
-      const bw = 56, bh = 7, byy = -d.h / 2 - 18;
-      ctx.fillStyle = '#26263a';
-      ctx.fillRect(-bw / 2, byy, bw, bh);
-      ctx.fillStyle = d.hp / d.maxHp > 0.35 ? '#5dff8f' : '#ff5d5d';
-      ctx.fillRect(-bw / 2, byy, bw * (d.hp / d.maxHp), bh);
+      const bw = 58, bh = 8, byy = -d.h / 2 - 20;
+      ctx.fillStyle = 'rgba(13,12,22,0.85)';
+      ctx.fillRect(-bw / 2 - 1, byy - 1, bw + 2, bh + 2);
+      const pct = d.hp / d.maxHp;
+      ctx.fillStyle = pct > 0.35 ? '#5dff8f' : '#ff5d5d';
+      ctx.fillRect(-bw / 2, byy, bw * pct, bh);
     }
     ctx.restore();
   }

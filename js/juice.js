@@ -139,8 +139,8 @@ export function buildModules(juice, scene, time) {
   juice.register({
     id: 'shake', name: '⑦ 屏震(稀缺!)', enabled: false,
     onHit({ crit, kill }) {
-      if (kill) { time.shake.mag = 6 * time.overload; time.shake.decay = 0.3; }
-      else if (crit) { time.shake.mag = 3 * time.overload; time.shake.decay = 0.2; }
+      if (kill) { time.shake.mag = 11 * time.overload; time.shake.decay = 0.35; }
+      else if (crit) { time.shake.mag = 6 * time.overload; time.shake.decay = 0.22; }
       // 普攻 0:每秒几十次命中全震 = 晕船
     },
   });

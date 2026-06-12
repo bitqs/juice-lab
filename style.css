@@ -48,6 +48,9 @@ main {
   cursor: crosshair;
   width: 640px;
   height: 440px;
+  touch-action: none;          /* 手机:点按攻击不触发滚动/缩放 */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 #stage-hint {
@@ -194,7 +197,14 @@ footer {
 footer a { color: var(--dim); }
 
 @media (max-width: 768px) {
+  body { padding: 10px; gap: 10px; }
   main { flex-direction: column; }
   #game { width: 100%; height: auto; aspect-ratio: 640/440; }
-  #toggles { grid-template-columns: 1fr; }
+  #toggles { grid-template-columns: 1fr 1fr; }
+  /* 触摸热区加大 */
+  button { padding: 12px 16px; font-size: 14px; }
+  .dot { width: 14px; height: 14px; }
+  #stepper { width: 100%; justify-content: space-between; gap: 8px; }
+  #dots { flex-wrap: wrap; justify-content: center; }
+  #stage-hint { font-size: 10px; }
 }
