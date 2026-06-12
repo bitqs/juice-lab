@@ -11,13 +11,15 @@ export function buildModules(juice, scene, time) {
     onHit({ target, kill }) { target.flashT = kill ? 0.06 : 0.12; },
   });
 
-  // ② 顿帧 hitstop — VS:普攻 0 / 暴击 55ms / 处决 80ms(樱井:越重越久)
+  // ② 顿帧 hitstop — 双层日式方案:
+  //   普攻 = 对象级顿帧(只停受击者 45ms + 微振动,世界照走 — ベルトスクロール铁律)
+  //   暴击 55ms / 处决 80ms = 世界级冻结(樱井:越重越久)
   juice.register({
     id: 'hitstop', name: '② 顿帧 hitstop', enabled: false,
-    onHit({ crit, kill }) {
+    onHit({ target, crit, kill }) {
       if (kill) time.freeze(0.080);
       else if (crit) time.freeze(0.055);
-      // 普攻 0:高频命中全停会把游戏变 PPT
+      else target.selfFreeze = 0.045;
     },
   });
 

@@ -29,6 +29,7 @@ export function createScene(juice) {
     wobble: 0,             // 受击晃动
     staggerT: 0,           // 硬直(juice⑩ 写入):受击僵住+后仰
     split: false,          // 居合两断(juice⑭ 写入):尸体改为两段分离演出
+    selfFreeze: 0,         // 对象级顿帧(日式清版流):只停自己,世界照走
   };
 
   function attack() {
@@ -85,6 +86,10 @@ export function createScene(juice) {
         if (flags.commitment) player.recoverT = 0.16;     // 后摇:挥完僵 160ms
       }
     }
+
+    // 对象级顿帧:被冻住的只有假人,粒子/数字/世界照常走(ベルトスクロール铁律)
+    dummy.selfFreeze = Math.max(0, dummy.selfFreeze - 0.016);
+    if (dummy.selfFreeze > 0) return;
 
     // 假人物理(击退/弹飞由 juice 写入 vx/vy)
     dummy.x += dummy.vx * dt;
@@ -225,7 +230,10 @@ export function createScene(juice) {
     ctx.save();
     const wob = Math.sin(d.wobble * 20) * d.wobble * 4;
     const stagger = d.alive ? d.staggerT * 0.16 : 0;      // 硬直后仰(juice⑩)
-    ctx.translate(d.x + wob, d.y - d.dy);
+    // 顿帧中微振动(樱井流"分解工夫"):冻住但在颤,像力量灌进身体
+    const jx = d.selfFreeze > 0 ? (Math.random() * 2 - 1) * 1.6 : 0;
+    const jy = d.selfFreeze > 0 ? (Math.random() * 2 - 1) * 1.2 : 0;
+    ctx.translate(d.x + wob + jx, d.y - d.dy + jy);
     ctx.rotate(stagger);
     if (d.spawnPop > 0) {                                 // 复活:从 0.4 弹到 1 微过冲
       d.spawnPop = Math.max(0, d.spawnPop - 0.016);
