@@ -32,7 +32,7 @@ main {
   gap: 14px;
   width: 100%;
   max-width: 1020px;
-  align-items: stretch;
+  align-items: flex-start;
 }
 
 #stage {

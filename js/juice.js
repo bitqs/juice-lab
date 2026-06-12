@@ -48,7 +48,7 @@ export function buildModules(juice, scene, time) {
     onDraw({ ctx }) {
       for (const n of numbers) {
         const a = 1 - Math.max(0, (n.t - n.life * 0.6) / (n.life * 0.4));
-        const size = (n.crit ? 26 : 17) * Math.min(1, 4 * n.t + 0.4) * time.overload;
+        const size = (n.crit ? 30 : 20) * Math.min(1, 6 * n.t + 0.55) * time.overload;
         ctx.save();
         ctx.globalAlpha = a;
         ctx.font = `bold ${size}px monospace`;
