@@ -133,7 +133,7 @@ function frame(now) {
 
   if (auto) {
     autoT -= dt;
-    if (autoT <= 0) { scene.attack(); autoT = 0.38; }
+    if (autoT <= 0) { scene.attack(); autoT = 0.55; }   // 适配前后摇全程 ~490ms
   }
 
   scene.update(dt);

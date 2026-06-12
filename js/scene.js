@@ -95,6 +95,7 @@ export function createScene(juice) {
         dummy.alive = true; dummy.hp = dummy.maxHp;
         dummy.x = 430; dummy.vx = 0; dummy.vy = 0; dummy.dy = 0;
         dummy.split = false; dummy.staggerT = 0;
+        dummy.spawnPop = 0.22;                            // 复活弹出(反馈空窗补一拍)
       }
     }
     dummy.x = Math.max(300, Math.min(W - 60, dummy.x));
@@ -241,6 +242,12 @@ export function createScene(juice) {
     const stagger = d.alive ? d.staggerT * 0.16 : 0;      // 硬直后仰(juice⑩)
     ctx.translate(d.x + wob, d.y - d.dy);
     ctx.rotate(stagger);
+    if (d.spawnPop > 0) {                                 // 复活:从 0.4 弹到 1 微过冲
+      d.spawnPop = Math.max(0, d.spawnPop - 0.016);
+      const p = 1 - d.spawnPop / 0.22;
+      const s = 0.4 + p * 0.75 - Math.sin(p * Math.PI) * 0.12;
+      ctx.scale(s, s);
+    }
     if (!d.alive) ctx.rotate(0.55);
 
     // 影子(贴地,不随尸体腾空)

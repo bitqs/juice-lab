@@ -296,9 +296,65 @@ export function buildModules(juice, scene, time) {
     },
   });
 
-  // ⑮ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  // ⑮ 风格评价(DMC)— 实时给你的进攻打分:D→SSS,持续进攻涨,停手就掉
+  const RANKS = [
+    { ch: 'D', color: '#8888a0' }, { ch: 'C', color: '#9fb4d0' },
+    { ch: 'B', color: '#5dc8ff' }, { ch: 'A', color: '#5dff8f' },
+    { ch: 'S', color: '#ffd34d' }, { ch: 'SS', color: '#ff9d3c' },
+    { ch: 'SSS', color: '#ff5d5d' },
+  ];
   juice.register({
-    id: 'overload', name: '⑮ 过载演示', enabled: false,
+    id: 'style', name: '⑮ 风格评价(DMC)', enabled: false,
+    _gauge: 0, _combo: 0, _comboT: 0, _rank: -1, _pulse: 0,
+    onHit({ crit, kill, melee }) {
+      // 多样性给分更高:暴击/剑气二段/击杀 > 重复普攻
+      this._gauge += kill ? 90 : crit ? 40 : melee ? 22 : 30;
+      this._gauge = Math.min(this._gauge, 700);
+      this._combo++; this._comboT = 1.6;
+    },
+    onUpdate({ dt }) {
+      // 衰减随段位加速 — 段位越高越难保持(DMC 规则)
+      const r = Math.floor(this._gauge / 100);
+      this._gauge = Math.max(0, this._gauge - (35 + r * 18) * dt);
+      this._comboT -= dt;
+      if (this._comboT <= 0) this._combo = 0;
+      const nr = this._gauge < 25 ? -1 : Math.min(6, Math.floor(this._gauge / 100));
+      if (nr > this._rank) this._pulse = 1;               // 升段脉冲
+      this._rank = nr;
+      this._pulse = Math.max(0, this._pulse - dt * 3);
+    },
+    onDraw({ ctx }) {
+      if (this._rank < 0) return;
+      const R = RANKS[this._rank];
+      const scale = 1 + this._pulse * 0.6;
+      ctx.save();
+      ctx.translate(scene.W - 78, 72);
+      ctx.rotate(-0.08);
+      ctx.scale(scale, scale);
+      ctx.font = 'italic bold 44px monospace';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 5;
+      ctx.strokeText(R.ch, 0, 0);
+      ctx.fillStyle = R.color;
+      ctx.fillText(R.ch, 0, 0);
+      // 段位槽
+      ctx.fillStyle = 'rgba(13,12,22,0.7)';
+      ctx.fillRect(-34, 10, 68, 5);
+      ctx.fillStyle = R.color;
+      ctx.fillRect(-34, 10, 68 * ((this._gauge % 100) / 100), 5);
+      if (this._combo > 1) {
+        ctx.font = 'bold 13px monospace';
+        ctx.fillStyle = '#e8e8f0';
+        ctx.fillText(`${this._combo} HITS`, 0, 32);
+      }
+      ctx.restore();
+    },
+  });
+
+  // ⑯ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  juice.register({
+    id: 'overload', name: '⑯ 过载演示', enabled: false,
     onUpdate() {},
   });
 
