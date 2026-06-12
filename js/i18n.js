@@ -14,7 +14,7 @@ export function t(key) {
 export const UI = {
   en: {
     title: '⚔️ Juice Lab',
-    subtitle: 'From "dead fish" to "can\'t stop" — game feel, one layer at a time. Every number traced to VS / Hades source teardowns.',
+    subtitle: 'An interactive anatomy of why hitting things feels good.',
     hint: 'tap / space = attack',
     ab: 'A/B: ',
     abCurrent: 'current',
