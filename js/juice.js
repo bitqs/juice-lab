@@ -2,6 +2,7 @@
 // 参数全部溯源(见 steps.js 出处)。注册顺序 = 步骤顺序。
 
 import { sfx } from './audio.js';
+import { sprites } from './assets.js';
 
 export function buildModules(juice, scene, time) {
 
@@ -391,45 +392,51 @@ export function buildModules(juice, scene, time) {
     },
     trigger() {
       if (this._charge < 100 || this._state) return;
-      this._state = 'charge'; this._t = 0;
+      this._state = 'dark'; this._t = 0;
+      this._flashes = []; this._bolts = [];
       sfx('ultCharge');
-      time.slowmo(0.15, 0.6);                            // 全场慢下来,只有你在蓄
     },
+    _next(state) { this._state = state; this._t = 0; },
     onUpdate() {
-      // 演出走真实节拍(不被自己掀起的慢动作拖住)
+      // 整段演出走真实节拍;世界全程暂停,直到 death 才放行
       if (!this._state) {
         this._bars = Math.max(0, this._bars - 0.016 * 3);
         return;
       }
       this._t += 0.016;
-      this._bars = Math.min(1, this._bars + 0.016 * 4);  // 黑边压入
+      this._bars = Math.min(1, this._bars + 0.016 * 4);   // 黑边压入
+      if (this._state !== 'death') time.freeze(0.1);      // 持续按住暂停键
       const d = scene.dummy;
-      if (this._state === 'charge') {
-        this._aura = this._t / 0.6;
-        if (this._t > 0.6) {
-          this._state = 'slash'; this._t = 0; this._aura = 0;
-          this._slashes = [0, 1, 2].map(i => ({ delay: i * 0.13, fired: false, ang: -0.55 + i * 0.55, life: 0 }));
+
+      if (this._state === 'dark' && this._t > 0.45) {     // ① 暗屏
+        this._next('name'); sfx('shout');                  // ② 吼出招式名
+      } else if (this._state === 'name' && this._t > 0.95) {
+        this._next('charge');
+      } else if (this._state === 'charge') {              // ③ 蓄力 + 电闪雷鸣
+        this._aura = Math.min(1, this._t / 0.8);
+        if (Math.random() < 0.14) {                        // 随机劈雷
+          this._bolts.push({ x: 60 + Math.random() * 520, t: 0 });
+          if (Math.random() < 0.5) sfx('thunder');
         }
+        if (this._t > 0.9) { this._next('cutin'); sfx('shout'); }
+      } else if (this._state === 'cutin' && this._t > 0.6) {   // ④ 敌人放大居中
+        this._next('slash');                               // ⑤ 无限斩
       } else if (this._state === 'slash') {
-        for (const s of this._slashes) {
-          if (!s.fired && this._t >= s.delay) {
-            s.fired = true;
-            sfx('slash');
-            time.freeze(0.05);                            // 每道斩线一记微顿帧
-            if (d.alive) scene.applyHit(1.4, { melee: false });
-          }
-          if (s.fired) s.life += 0.016;
+        if (Math.random() < 0.55) {
+          this._slashes.push({ ang: Math.random() * Math.PI, off: (Math.random() - 0.5) * 120, life: 0 });
+          if (this._slashes.length % 3 === 0) sfx('slash');
         }
-        if (this._t > 0.55) {
-          this._state = 'boom'; this._t = 0;
-          sfx('ultBoom');
-          time.shake.mag = 16; time.shake.decay = 0.45;   // 最大震幅,只此一处
-          time.zoom.cx = d.x; time.zoom.cy = d.y - 20;
-          if (d.alive) scene.applyHit(5, { melee: false }); // 终镇必杀
-        }
-      } else if (this._state === 'boom') {
-        if (this._t > 0.9) { this._state = null; this._charge = 0; this._slashes = []; }
+        for (const s of this._slashes) s.life += 0.016;
+        if (this._t > 1.1) { this._next('pose'); this._slashes = []; }
+      } else if (this._state === 'pose' && this._t > 0.85) {   // ⑥ 收刀造型
+        this._next('death');                               // ⑦ 然后,敌人才死
+        sfx('ultBoom');
+        time.shake.mag = 16; time.shake.decay = 0.45;
+        if (d.alive) scene.applyHit(10, { melee: false }); // 必杀,触发居合两断全套
+      } else if (this._state === 'death' && this._t > 0.9) {
+        this._state = null; this._charge = 0; this._slashes = []; this._bolts = [];
       }
+      this._bolts = (this._bolts || []).filter(b => (b.t += 0.016) < 0.18);
     },
     onDraw({ ctx }) {
       const W = scene.W, H = scene.H;
@@ -453,49 +460,144 @@ export function buildModules(juice, scene, time) {
         }
         ctx.restore();
       }
+      const st = this._state;
+      const inCut = st && st !== 'death';
+
+      // ① 暗幕(整段演出压暗,name/cutin 最深)
+      if (inCut) {
+        const deep = st === 'dark' ? Math.min(0.75, this._t * 2) : 0.75;
+        ctx.fillStyle = `rgba(2,2,8,${deep})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+
       // 电影黑边(letterbox)
       if (this._bars > 0) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, W, 46 * this._bars);
         ctx.fillRect(0, H - 46 * this._bars, W, 46 * this._bars);
       }
-      // 蓄力光环:收束圆 + 人物金光
-      if (this._state === 'charge') {
+
+      // ② 招式名:毛笔体大字砸入
+      if (st === 'name' || st === 'charge') {
+        const t = st === 'name' ? this._t : 1;
+        const scaleIn = st === 'name' ? Math.min(1, t * 6) : 1;
+        const punch = 1 + Math.max(0, 0.5 - t * 3);       // 砸入过冲
+        ctx.save();
+        ctx.translate(W / 2, H / 2 - 40);
+        ctx.rotate(-0.06);
+        ctx.scale(scaleIn * punch, scaleIn * punch);
+        ctx.font = 'bold 64px "Yuji Syuku", "Hiragino Mincho ProN", serif';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 10;
+        ctx.strokeText('無限斬・滅', 0, 0);
+        ctx.fillStyle = '#fff';
+        ctx.fillText('無限斬・滅', 0, 0);
+        ctx.fillStyle = '#ff5d5d';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText('— 奥义 —', 0, -56);
+        ctx.restore();
+      }
+
+      // ③ 蓄力:光环收束 + 主角金光 + 雷电
+      if (st === 'charge') {
         const p = scene.player, a = this._aura;
         ctx.save();
         ctx.translate(p.x, p.y - 10);
-        for (let i = 0; i < 3; i++) {
-          const r = (1 - ((a * 1.4 + i * 0.33) % 1)) * 70 + 8;
-          ctx.strokeStyle = `rgba(255,211,77,${0.5 - r / 200})`;
-          ctx.lineWidth = 2.5;
+        for (let i = 0; i < 4; i++) {
+          const r = (1 - ((a * 1.6 + i * 0.25) % 1)) * 90 + 8;
+          ctx.strokeStyle = `rgba(255,211,77,${0.6 - r / 180})`;
+          ctx.lineWidth = 3;
           ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
         }
-        ctx.fillStyle = `rgba(255,211,77,${a * 0.16})`;
-        ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(255,211,77,${a * 0.22})`;
+        ctx.beginPath(); ctx.arc(0, 0, 52, 0, Math.PI * 2); ctx.fill();
         ctx.restore();
-        // 全场压暗,聚焦主角
-        ctx.fillStyle = `rgba(0,0,0,${a * 0.35})`;
-        ctx.fillRect(0, 0, W, H);
+        // 雷电:锯齿折线劈下 + 整屏闪
+        for (const b of this._bolts) {
+          const a2 = 1 - b.t / 0.18;
+          ctx.save();
+          ctx.strokeStyle = `rgba(200,230,255,${a2})`;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          let bx = b.x, by = 0;
+          ctx.moveTo(bx, by);
+          while (by < H - 80) { bx += (Math.random() - 0.5) * 46; by += 28 + Math.random() * 22; ctx.lineTo(bx, by); }
+          ctx.stroke();
+          ctx.restore();
+          if (b.t < 0.04) { ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(0, 0, W, H); }
+        }
       }
-      // 三连斩线:贯穿全屏,交叉角度
-      for (const s of (this._slashes || [])) {
-        if (!s.fired || s.life > 0.4) continue;
-        const a = 1 - s.life / 0.4;
-        const d = scene.dummy;
+
+      // ④ 敌人 cut-in:放大到屏幕中央 + 集中线
+      if ((st === 'cutin' || st === 'slash') && sprites.ready) {
+        const pop = st === 'cutin' ? Math.min(1, this._t * 3.5) : 1;
+        // 集中線(speed lines):从四周射向中心
         ctx.save();
-        ctx.translate(d.x, d.y - 10);
-        ctx.rotate(s.ang);
-        ctx.strokeStyle = `rgba(255,255,255,${a})`;
-        ctx.lineWidth = s.life < 0.06 ? 5 : 2;
-        ctx.beginPath(); ctx.moveTo(-380, 0); ctx.lineTo(380, 0); ctx.stroke();
-        ctx.strokeStyle = `rgba(150,220,255,${a * 0.5})`;
-        ctx.lineWidth = 9;
-        ctx.beginPath(); ctx.moveTo(-380, 0); ctx.lineTo(380, 0); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${0.5 * pop})`;
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 36; i++) {
+          const ang = (i / 36) * Math.PI * 2 + 0.05;
+          const r0 = 200 + (i % 5) * 18, r1 = 420;
+          ctx.beginPath();
+          ctx.moveTo(W / 2 + Math.cos(ang) * r0, H / 2 + Math.sin(ang) * r0);
+          ctx.lineTo(W / 2 + Math.cos(ang) * r1, H / 2 + Math.sin(ang) * r1);
+          ctx.stroke();
+        }
+        // 放大的假人(惊恐微颤)
+        const jit = st === 'slash' ? 3 : 1;
+        ctx.translate(W / 2 + (Math.random() - 0.5) * jit, H / 2 + 10 + (Math.random() - 0.5) * jit);
+        const s = 2.6 * (0.4 + 0.6 * pop);
+        ctx.scale(s, s);
+        ctx.drawImage(sprites.dummy, -36, -50, 72, 100);
         ctx.restore();
       }
-      // 终镇白屏衰减
-      if (this._state === 'boom' && this._t < 0.25) {
-        ctx.fillStyle = `rgba(255,255,255,${0.7 * (1 - this._t / 0.25)})`;
+
+      // ⑤ 无限斩:斩线风暴扫过放大的敌人
+      if (st === 'slash') {
+        for (const s of this._slashes) {
+          if (s.life > 0.3) continue;
+          const a = 1 - s.life / 0.3;
+          ctx.save();
+          ctx.translate(W / 2 + s.off * Math.cos(s.ang), H / 2 + s.off * Math.sin(s.ang));
+          ctx.rotate(s.ang);
+          ctx.strokeStyle = `rgba(255,255,255,${a})`;
+          ctx.lineWidth = s.life < 0.05 ? 4 : 1.5;
+          ctx.beginPath(); ctx.moveTo(-400, 0); ctx.lineTo(400, 0); ctx.stroke();
+          ctx.strokeStyle = `rgba(150,220,255,${a * 0.45})`;
+          ctx.lineWidth = 8;
+          ctx.beginPath(); ctx.moveTo(-400, 0); ctx.lineTo(400, 0); ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      // ⑥ 收刀造型:主角剪影居中,风线横扫,一个字:稳
+      if (st === 'pose' && sprites.ready) {
+        const a = Math.min(1, this._t * 5);
+        ctx.save();
+        // 横向风线
+        ctx.strokeStyle = `rgba(255,255,255,${0.25 * a})`;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 10; i++) {
+          const wy = 60 + i * 36 + (i % 3) * 9;
+          ctx.beginPath(); ctx.moveTo(0, wy); ctx.lineTo(W, wy); ctx.stroke();
+        }
+        // 主角大立绘(背光金边)
+        ctx.translate(W / 2, H / 2 + 30);
+        ctx.scale(2.4, 2.4);
+        ctx.shadowColor = 'rgba(255,211,77,0.9)';
+        ctx.shadowBlur = 18 * a;
+        ctx.drawImage(sprites.knight, -30, -64, 60, 90);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+        ctx.font = 'bold 15px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(232,232,240,${a})`;
+        ctx.fillText('……斬り終わった。', W / 2, H - 64);
+      }
+
+      // ⑦ 终镇白闪
+      if (st === 'death' && this._t < 0.25) {
+        ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - this._t / 0.25)})`;
         ctx.fillRect(0, 0, W, H);
       }
     },

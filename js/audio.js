@@ -33,6 +33,16 @@ export function sfx(kind) {
     // 斩线:高频噪声短爆
     noise(a, t, 0.07, 0.3);
     tone(a, t, 'triangle', 1800, 600, 0.06, 0.15);
+  } else if (kind === 'shout') {
+    // 招式名吼出:太鼓重击 + 中频吼(锯齿短扫)
+    tone(a, t, 'sine', 90, 50, 0.3, 0.5);
+    tone(a, t, 'sawtooth', 300, 150, 0.25, 0.22);
+    noise(a, t, 0.12, 0.3);
+  } else if (kind === 'thunder') {
+    // 雷:噼啪裂响 + 低频滚雷
+    noise(a, t, 0.05, 0.5);
+    noise(a, t + 0.05, 0.4, 0.25);
+    tone(a, t + 0.04, 'sine', 70, 30, 0.5, 0.35);
   } else if (kind === 'ultBoom') {
     // 终镇:亚低频长鸣 + 噪声尾
     tone(a, t, 'sine', 80, 32, 0.5, 0.5);
