@@ -20,6 +20,8 @@ export const time = {
   scaleLeft: 0,             //   慢动作剩余真实秒
   skip: 0,                  // 抽帧(juice⑯):下一帧额外跳过的世界时间
   zoom: { v: 1, cx: 320, cy: 220 },   // 急推变焦(juice⑯)
+  kick: { x: 0, y: 0 },     // 镜头后坐(juice⑯):方向性位移,非随机
+  tilt: 0,                  // 荷兰角(juice⑯):重击瞬间画面微倾
   freeze(sec) { this.freezeLeft = Math.max(this.freezeLeft, sec); },
   slowmo(factor, sec) { this.scale = factor; this.scaleLeft = sec; },
 };
@@ -178,9 +180,20 @@ function frame(now) {
     document.body.style.transform = '';
   }
 
+  // 镜头后坐 + 荷兰角:真实时间衰减
+  time.kick.x *= Math.exp(-realDt * 14);
+  time.kick.y *= Math.exp(-realDt * 14);
+  time.tilt *= Math.exp(-realDt * 9);
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
-  ctx.translate(sh.x, sh.y);
+  ctx.translate(sh.x + time.kick.x, sh.y + time.kick.y);
+  // 荷兰角:绕画面中心微倾
+  if (Math.abs(time.tilt) > 0.0005) {
+    ctx.translate(320, 220);
+    ctx.rotate(time.tilt);
+    ctx.translate(-320, -220);
+  }
   // 急推变焦:向焦点(假人)推近
   const z = time.zoom;
   if (z.v !== 1) {

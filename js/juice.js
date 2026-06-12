@@ -359,14 +359,20 @@ export function buildModules(juice, scene, time) {
   juice.register({
     id: 'cinema', name: '⑯ 镜头语言(电影)', enabled: false,
     _zoomT: 0,
-    onHit({ target, crit, kill }) {
+    onHit({ target, crit, kill, dir }) {
       time.skip = 0.03;                                   // 每次命中吞 30ms — "去一帧"更狠
       time.zoom.cx = target.x; time.zoom.cy = target.y - 20;
+      // 镜头后坐:沿攻击方向顶一下镜头(方向性,区别于随机屏震)
+      time.kick.x = dir * (kill ? 7 : crit ? 5 : 2.5);
+      time.kick.y = -(kill ? 3 : 1.5);
       if (kill) {
         time.slowmo(0.25, 0.30);                          // 杀:慢 0.25x 300ms 后瞬回 — 速度坡道
         this._zoomT = 0.45; this._zoomMax = 1.16;
+        this._outT = 0;                                   // 推完再拉远揭示
+        time.tilt = dir * 0.022;                          // 荷兰角:重击瞬间画面歪一下
       } else if (crit) {
         this._zoomT = 0.18; this._zoomMax = 1.07;         // 暴击:急推一下
+        time.tilt = dir * 0.012;
       }
     },
     onUpdate() {
@@ -375,11 +381,17 @@ export function buildModules(juice, scene, time) {
         this._zoomT = Math.max(0, this._zoomT - 0.016);
         const p = this._zoomT / (this._zoomMax === 1.16 ? 0.45 : 0.18);
         time.zoom.v = 1 + (this._zoomMax - 1) * Math.sin(Math.min(1, p) * Math.PI * 0.5);
+        if (this._zoomT === 0 && this._zoomMax === 1.16) this._outT = 0.3;  // 击杀推完 → 拉远
+      } else if (this._outT > 0) {
+        // crash-zoom-out:猛拉回广角看全局(Sleeping Dogs 式揭示)
+        this._outT = Math.max(0, this._outT - 0.016);
+        const p = this._outT / 0.3;
+        time.zoom.v = 1 - 0.05 * Math.sin(p * Math.PI);
       } else if (time.zoom.v !== 1) {
         time.zoom.v = 1;
       }
     },
-    onDisabled() { time.zoom.v = 1; time.scale = 1; },
+    onDisabled() { time.zoom.v = 1; time.scale = 1; time.tilt = 0; time.kick.x = time.kick.y = 0; },
   });
 
   // ⑰ 大招 — 综合演出:蓄力槽 → 时停拔刀 → 三连斩线 → 终镇。所有层一次性合奏
