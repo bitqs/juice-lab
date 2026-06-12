@@ -1,6 +1,8 @@
 // 场景:玩家(剑士)+ 训练假人。所有"手感"都不在这里 — 这里只有规则。
 // juice 模块通过钩子介入:registry.fire('onHit'/'onKill', payload)
 
+import { sprites } from './assets.js';
+
 export function createScene(juice) {
   const W = 640, H = 440, GROUND = 340;
 
@@ -162,37 +164,20 @@ export function createScene(juice) {
     ctx.ellipse(0, h / 2 + 6 - bob, 22, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 披风(深色,随呼吸微摆)
-    ctx.fillStyle = '#2a3f66';
-    ctx.beginPath();
-    ctx.moveTo(-w / 2 + 2, -h / 2 + 8);
-    ctx.quadraticCurveTo(-w / 2 - 10 - bob, 0, -w / 2 - 5, h / 2 - 2);
-    ctx.lineTo(-w / 2 + 4, h / 2 - 4);
-    ctx.closePath();
-    ctx.fill();
-
-    // 腿
-    ctx.fillStyle = '#27304a';
-    ctx.fillRect(-10, h / 2 - 18, 8, 18);
-    ctx.fillRect(3, h / 2 - 18, 8, 18);
-
-    // 躯干(铠甲两档色)
-    ctx.fillStyle = '#3f6fb5';
-    ctx.fillRect(-w / 2, -h / 2 + 12, w, h - 30);
-    ctx.fillStyle = '#5b8fd9';
-    ctx.fillRect(-w / 2, -h / 2 + 12, w, 8);              // 肩甲高光
-    ctx.fillStyle = '#2c4d80';
-    ctx.fillRect(-w / 2, h / 2 - 26, w, 8);               // 腰带暗部
-
-    // 头 + 头盔
-    ctx.fillStyle = '#e8c9a0';
-    ctx.fillRect(-9, -h / 2 - 4, 18, 16);                 // 脸
-    ctx.fillStyle = '#5b8fd9';
-    ctx.fillRect(-11, -h / 2 - 10, 22, 9);                // 盔
-    ctx.fillStyle = '#3f6fb5';
-    ctx.fillRect(-11, -h / 2 - 2, 22, 3);
-    ctx.fillStyle = '#1c1c28';
-    ctx.fillRect(2, -h / 2 + 2, 4, 4);                    // 眼
+    // 身体:SVG 精灵(就绪前回退简易矩形)
+    if (sprites.ready) {
+      // 前/后摇身体语言:前摇后倾,后摇前倾
+      const lean = winding ? -0.08 : (recovering && t < 0) ? 0.07 : 0;
+      ctx.save();
+      ctx.rotate(lean);
+      ctx.drawImage(sprites.knight, -30, -h / 2 - 18, 60, 90);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#3f6fb5';
+      ctx.fillRect(-w / 2, -h / 2 + 12, w, h - 30);
+      ctx.fillStyle = '#e8c9a0';
+      ctx.fillRect(-9, -h / 2 - 4, 18, 16);
+    }
 
     // 剑:idle 扛肩;前摇举到最高;攻击从上劈下(pace 映射);后摇收剑在前下方
     const angle = winding ? (-2.45 - (player.windupT / 0.10) * 0.5)
@@ -279,12 +264,17 @@ export function createScene(juice) {
       if (top) { ctx.translate(slide, -d.h * 0.18 + drop * 0.4); ctx.rotate(0.35 * prog); }
       else { ctx.translate(-slide * 0.25, drop); ctx.rotate(-0.08 * prog); }
       ctx.beginPath();
-      // 上/下半身裁切区域(斜线分割)
-      if (top) { ctx.moveTo(-d.w / 2, -d.h / 2); ctx.lineTo(d.w / 2, -d.h / 2); ctx.lineTo(d.w / 2, -4); ctx.lineTo(-d.w / 2, 8); }
-      else { ctx.moveTo(-d.w / 2, 8); ctx.lineTo(d.w / 2, -4); ctx.lineTo(d.w / 2, d.h / 2); ctx.lineTo(-d.w / 2, d.h / 2); }
+      // 上/下半身裁切区域(斜线分割,范围盖住整张精灵)
+      if (top) { ctx.moveTo(-40, -d.h / 2 - 20); ctx.lineTo(40, -d.h / 2 - 20); ctx.lineTo(40, -4); ctx.lineTo(-40, 8); }
+      else { ctx.moveTo(-40, 8); ctx.lineTo(40, -4); ctx.lineTo(40, d.h / 2 + 24); ctx.lineTo(-40, d.h / 2 + 24); }
       ctx.closePath();
-      ctx.fillStyle = '#6e4a32';
-      ctx.fill();
+      if (sprites.ready) {
+        ctx.clip();
+        ctx.drawImage(sprites.dummyDark, -36, -d.h / 2 - 16, 72, 100);
+      } else {
+        ctx.fillStyle = '#6e4a32';
+        ctx.fill();
+      }
       // 切面高亮(刚断开时发白,随时间冷却)
       ctx.strokeStyle = `rgba(255,255,255,${Math.max(0, 0.9 - prog)})`;
       ctx.lineWidth = 2.5;
@@ -297,35 +287,15 @@ export function createScene(juice) {
     ctx.restore();
   }
 
-  // 底座桩(插在地里)
-    if (d.alive) {
-      ctx.fillStyle = flashing ? '#ffffff' : '#5c4630';
-      ctx.fillRect(-6, d.h / 2 - 6, 12, 16);
-    }
-
-    // 本体(木桶身假人,两档木色 + 横箍)
-    ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
-    ctx.beginPath();
-    ctx.roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 8);
-    ctx.fill();
-    if (!flashing) {
-      ctx.fillStyle = d.alive ? '#9c5f2e' : '#54381f';
+    // 本体:SVG 精灵(闪白=全白变体,尸体=压暗变体;未就绪回退简易桶)
+    if (sprites.ready) {
+      const img = flashing ? sprites.dummyWhite : (d.alive ? sprites.dummy : sprites.dummyDark);
+      ctx.drawImage(img, -36, -d.h / 2 - 16, 72, 100);
+    } else {
+      ctx.fillStyle = flashing ? '#ffffff' : (d.alive ? '#b8763f' : '#6e4a32');
       ctx.beginPath();
-      ctx.roundRect(-d.w / 2, -d.h / 2, d.w * 0.35, d.h, 8); // 左侧暗部
+      ctx.roundRect(-d.w / 2, -d.h / 2, d.w, d.h, 8);
       ctx.fill();
-      // 铁箍三道
-      ctx.fillStyle = '#3d3d52';
-      for (const ry of [-d.h / 2 + 10, -2, d.h / 2 - 14]) {
-        ctx.fillRect(-d.w / 2, ry, d.w, 5);
-      }
-      // 横臂(训练假人标志)
-      ctx.fillStyle = d.alive ? '#8a5a2c' : '#54381f';
-      ctx.fillRect(-d.w / 2 - 14, -d.h / 2 + 18, d.w + 28, 7);
-      // 草绳靶心
-      ctx.strokeStyle = '#d9b06a';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(0, 6, 9, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 6, 4, 0, Math.PI * 2); ctx.stroke();
     }
 
     // 血条(常显)

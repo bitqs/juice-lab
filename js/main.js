@@ -15,8 +15,13 @@ export const juice = {
 export const time = {
   freezeLeft: 0,            // 顿帧剩余秒(真实时间)
   shake: { mag: 0, decay: 0, x: 0, y: 0 },
-  overload: 1,              // 第 10 步过载倍率
+  overload: 1,              // 过载倍率
+  scale: 1,                 // 速度坡道(juice⑯):<1 慢动作
+  scaleLeft: 0,             //   慢动作剩余真实秒
+  skip: 0,                  // 抽帧(juice⑯):下一帧额外跳过的世界时间
+  zoom: { v: 1, cx: 320, cy: 220 },   // 急推变焦(juice⑯)
   freeze(sec) { this.freezeLeft = Math.max(this.freezeLeft, sec); },
+  slowmo(factor, sec) { this.scale = factor; this.scaleLeft = sec; },
 };
 
 // ---------- 初始化 ----------
@@ -131,6 +136,15 @@ function frame(now) {
     dt = 0;
   }
 
+  // 速度坡道(电影):慢动作计时用真实时间,到点瞬间恢复 1x
+  if (time.scaleLeft > 0) {
+    time.scaleLeft -= (now - frameStart) / 1000;
+    if (time.scaleLeft <= 0) time.scale = 1;
+  }
+  dt *= time.scale;
+  // 抽帧:命中帧直接吞掉一小段时间 — 剪辑师的"去一帧"
+  if (time.skip > 0) { dt += time.skip; time.skip = 0; }
+
   if (auto) {
     autoT -= dt;
     if (autoT <= 0) { scene.attack(); autoT = 0.55; }   // 适配前后摇全程 ~490ms
@@ -156,6 +170,13 @@ function frame(now) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(sh.x, sh.y);
+  // 急推变焦:向焦点(假人)推近
+  const z = time.zoom;
+  if (z.v !== 1) {
+    ctx.translate(z.cx, z.cy);
+    ctx.scale(z.v, z.v);
+    ctx.translate(-z.cx, -z.cy);
+  }
   scene.draw(ctx);
   juice.fire('onDraw', { ctx });
   ctx.restore();

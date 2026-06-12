@@ -352,9 +352,36 @@ export function buildModules(juice, scene, time) {
     },
   });
 
-  // ⑯ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  // ⑯ 镜头语言(电影)— 抽帧 / 急推 / 速度坡道:剪辑台上的打击感
   juice.register({
-    id: 'overload', name: '⑯ 过载演示', enabled: false,
+    id: 'cinema', name: '⑯ 镜头语言(电影)', enabled: false,
+    _zoomT: 0,
+    onHit({ target, crit, kill }) {
+      time.skip = 0.03;                                   // 每次命中吞 30ms — "去一帧"更狠
+      time.zoom.cx = target.x; time.zoom.cy = target.y - 20;
+      if (kill) {
+        time.slowmo(0.25, 0.30);                          // 杀:慢 0.25x 300ms 后瞬回 — 速度坡道
+        this._zoomT = 0.45; this._zoomMax = 1.16;
+      } else if (crit) {
+        this._zoomT = 0.18; this._zoomMax = 1.07;         // 暴击:急推一下
+      }
+    },
+    onUpdate() {
+      // 用真实帧节拍衰减(慢动作期间镜头照样动 — 电影规则)
+      if (this._zoomT > 0) {
+        this._zoomT = Math.max(0, this._zoomT - 0.016);
+        const p = this._zoomT / (this._zoomMax === 1.16 ? 0.45 : 0.18);
+        time.zoom.v = 1 + (this._zoomMax - 1) * Math.sin(Math.min(1, p) * Math.PI * 0.5);
+      } else if (time.zoom.v !== 1) {
+        time.zoom.v = 1;
+      }
+    },
+    onDisabled() { time.zoom.v = 1; time.scale = 1; },
+  });
+
+  // ⑰ 全开+过载 — 倒U曲线演示档(本体只是说明,滑杆在 main 控 time.overload)
+  juice.register({
+    id: 'overload', name: '⑰ 过载演示', enabled: false,
     onUpdate() {},
   });
 
@@ -364,5 +391,7 @@ export function buildModules(juice, scene, time) {
     if (tame && !tame.enabled && tame._applied) tame.onDisabled();
     const com = juice.modules.find(m => m.id === 'commitment');
     if (com && !com.enabled && scene.flags.commitment) com.onDisabled();
+    const cin = juice.modules.find(m => m.id === 'cinema');
+    if (cin && !cin.enabled && (time.zoom.v !== 1 || time.scale !== 1)) cin.onDisabled();
   }, 100);
 }
